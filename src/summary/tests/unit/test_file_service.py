@@ -148,8 +148,6 @@ def test_extract_audio_from_video():
     try:
         path = extract_audio_from_media(MEDIA_INFO_SAMPLE_VISIO)
         assert path.name.endswith(".m4a")
-    except Exception as e:
-        pytest.fail(f"Failed to extract audio from video: {e}")
     finally:
         if path and path.exists():
             path.unlink()

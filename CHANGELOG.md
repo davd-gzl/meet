@@ -29,6 +29,7 @@ and this project adheres to
 
 ## Fixed
 
+- ✅(summary) report the real error when audio extraction fails
 - 🐛(transcription) fix silent bug in speaker assignment
 - 🐛(summary) extend tasks auto retry logic
 - 🐛(summary) properly detect when failure webhook should be sent
