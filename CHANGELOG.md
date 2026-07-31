@@ -29,6 +29,7 @@ and this project adheres to
 
 ## Fixed
 
+- 🔒️(frontend) generate SDK callback ids with the CSPRNG
 - 🐛(transcription) fix silent bug in speaker assignment
 - 🐛(summary) extend tasks auto retry logic
 - 🐛(summary) properly detect when failure webhook should be sent
