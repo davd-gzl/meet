@@ -4,7 +4,7 @@ import { HStack } from '@/styled-system/jsx'
 import { useTranslation } from 'react-i18next'
 import { Avatar } from '@/components/Avatar'
 import { useLowerHandParticipant } from '../api/lowerHandParticipant'
-import { getParticipantColor } from '@/features/rooms/utils/getParticipantColor'
+import { useParticipantColor } from '@/features/rooms/livekit/hooks/useParticipantColor'
 import type { Participant } from 'livekit-client'
 import { isLocal } from '@/utils/livekit'
 import { RiHand } from '@remixicon/react'
@@ -42,6 +42,7 @@ type HandRaisedListItemProps = {
 }
 
 export const RaisedHandRow = ({ participant }: HandRaisedListItemProps) => {
+  const participantColor = useParticipantColor(participant)
   const name = participant.name || participant.identity
   return (
     <HStack
@@ -55,7 +56,7 @@ export const RaisedHandRow = ({ participant }: HandRaisedListItemProps) => {
       })}
     >
       <HStack flex="1" minW="0" overflow="hidden">
-        <Avatar name={name} bgColor={getParticipantColor(participant)} />
+        <Avatar name={name} bgColor={participantColor} />
         <ParticipantName displayedName={name} isLocal={isLocal(participant)} />
       </HStack>
       <HStack flexShrink={0}>

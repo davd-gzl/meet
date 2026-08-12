@@ -5,7 +5,7 @@ import { styled } from '@/styled-system/jsx'
 import { Avatar } from '@/components/Avatar'
 import { Text } from '@/primitives'
 import { useRoomContext } from '@livekit/components-react'
-import { getParticipantColor } from '@/features/rooms/utils/getParticipantColor'
+import { useParticipantColor } from '@/features/rooms/livekit/hooks/useParticipantColor'
 import { getParticipantName } from '@/features/rooms/utils/getParticipantName'
 import { type Participant, RoomEvent } from 'livekit-client'
 import { useSnapshot } from 'valtio'
@@ -96,7 +96,7 @@ const useTranscriptionState = () => {
 const Transcription = ({ row }: { row: TranscriptionRow }) => {
   const { captionTextSize, captionFontColor, captionBackgroundColor } =
     useSnapshot(accessibilityStore)
-  const participantColor = getParticipantColor(row.participant)
+  const participantColor = useParticipantColor(row.participant)
   const participantName = getParticipantName(row.participant)
   const { fontSize, lineHeight } = CAPTION_FONT_SIZES[captionTextSize]
   const fontColor = CAPTION_FONT_COLOR_VALUES[captionFontColor]
