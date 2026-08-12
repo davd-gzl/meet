@@ -12,13 +12,19 @@ from django.contrib.auth.models import AnonymousUser
 import jwt
 import pytest
 from livekit.api import TwirpError
+from livekit.protocol.models import ParticipantInfo
 
 from core.factories import UserFactory
 from core.utils import (
+    MAX_DISPLAY_NAME_BYTES,
+    MAX_DISPLAY_NAME_CHARACTERS,
     NotificationError,
     create_livekit_client,
+    generate_livekit_config,
     generate_token,
+    list_participant_names,
     notify_participants,
+    unique_display_name,
 )
 
 pytestmark = pytest.mark.django_db
@@ -262,3 +268,103 @@ def test_notify_participants_success(mock_create_livekit_client):
 
     # Verify aclose was called
     mock_api_instance.aclose.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "name,taken,expected",
+    [
+        ("Jane Doe", set(), "Jane Doe"),
+        ("Jane Doe", {"John Doe"}, "Jane Doe"),
+        ("Jane Doe", {"Jane Doe"}, "Jane Doe (2)"),
+        ("Jane Doe", {"Jane Doe", "Jane Doe (2)"}, "Jane Doe (3)"),
+        ("Jane Doe", {"Jane Doe", "Jane Doe (3)"}, "Jane Doe (2)"),
+        ("X" * 300, set(), "X" * MAX_DISPLAY_NAME_CHARACTERS),
+        (
+            "X" * MAX_DISPLAY_NAME_CHARACTERS,
+            {"X" * MAX_DISPLAY_NAME_CHARACTERS},
+            "X" * (MAX_DISPLAY_NAME_CHARACTERS - 4) + " (2)",
+        ),
+        # 85 CJK characters are 255 bytes, so the number does not fit beside them
+        ("\u540d" * 85, {"\u540d" * 85}, "\u540d" * 84 + " (2)"),
+    ],
+)
+def test_unique_display_name(name, taken, expected):
+    """A taken name is numbered from two, within what LiveKit accepts."""
+    numbered = unique_display_name(name, taken)
+
+    assert numbered == expected
+    assert len(numbered.encode("utf-8")) <= MAX_DISPLAY_NAME_BYTES
+    assert len(numbered) <= MAX_DISPLAY_NAME_CHARACTERS
+
+
+@mock.patch("core.utils.create_livekit_client")
+def test_list_participant_names(mock_create_livekit_client):
+    """Participants are returned as a name per identity, the disconnected left out."""
+
+    class MockResponse:
+        """LiveKit ListParticipants response mock."""
+
+        participants = [
+            ParticipantInfo(identity="id-1", name="Jane Doe"),
+            ParticipantInfo(
+                identity="id-2", name="Gone", state=ParticipantInfo.State.DISCONNECTED
+            ),
+        ]
+
+    mock_api_instance = mock.Mock()
+    mock_api_instance.room = mock.Mock()
+    mock_api_instance.room.list_participants = mock.AsyncMock(
+        return_value=MockResponse()
+    )
+    mock_api_instance.aclose = mock.AsyncMock()
+    mock_create_livekit_client.return_value = mock_api_instance
+
+    assert list_participant_names("my-room") == {"id-1": "Jane Doe"}
+    mock_api_instance.aclose.assert_called_once()
+
+
+@mock.patch("core.utils.create_livekit_client")
+def test_list_participant_names_empty_when_livekit_fails(mock_create_livekit_client):
+    """A room LiveKit cannot answer for reads as an empty room."""
+
+    mock_api_instance = mock.Mock()
+    mock_api_instance.room = mock.Mock()
+    mock_api_instance.room.list_participants = mock.AsyncMock(
+        side_effect=TwirpError(msg="room not found", code=404, status=404)
+    )
+    mock_api_instance.aclose = mock.AsyncMock()
+    mock_create_livekit_client.return_value = mock_api_instance
+
+    assert list_participant_names("my-room") == {}
+
+
+def test_generate_livekit_config_numbers_a_taken_name(mock_list_participant_names):
+    """A name someone in the room already holds is numbered."""
+    mock_list_participant_names.return_value = {"someone-else": "Jane Doe"}
+
+    config = generate_livekit_config(
+        room_id="my-room", user=AnonymousUser(), username="Jane Doe", joining=True
+    )
+
+    assert decode_token(config["token"])["name"] == "Jane Doe (2)"
+
+
+def test_generate_livekit_config_ignores_own_name(mock_list_participant_names):
+    """A participant reconnecting keeps the name they already hold."""
+    user = UserFactory(full_name="Jane Doe")
+    mock_list_participant_names.return_value = {str(user.sub): "Jane Doe"}
+
+    config = generate_livekit_config(
+        room_id="my-room", user=user, username=None, joining=True
+    )
+
+    assert decode_token(config["token"])["name"] == "Jane Doe"
+
+
+def test_generate_livekit_config_reads_nobody_when_not_joining(
+    mock_list_participant_names,
+):
+    """Serializing a room nobody is joining costs no LiveKit call."""
+    generate_livekit_config(room_id="my-room", user=AnonymousUser(), username="Jane")
+
+    mock_list_participant_names.assert_not_called()

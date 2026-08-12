@@ -196,6 +196,9 @@ class RoomSerializer(serializers.ModelSerializer):
 
         if should_access_room:
             room_id = f"{instance.id!s}"
+            # A request carrying a name is someone about to join, and only then
+            # is the name worth checking against the room. Reading a room's
+            # settings carries none and costs no LiveKit call.
             username = request.query_params.get("username", None)
             output["livekit"] = utils.generate_livekit_config(
                 room_id=room_id,
@@ -203,6 +206,8 @@ class RoomSerializer(serializers.ModelSerializer):
                 username=username,
                 configuration=output["configuration"],
                 role=role,
+                participant_id=self.context.get("participant_id"),
+                joining=username is not None,
             )
         else:
             del output["pin_code"]
@@ -588,7 +593,9 @@ class RaiseHandSerializer(BaseValidationOnlySerializer):
 class RenameParticipantSerializer(BaseValidationOnlySerializer):
     """Serializer for renaming a participant in a room."""
 
-    name = serializers.CharField(min_length=1, max_length=255, allow_blank=False)
+    name = serializers.CharField(
+        min_length=1, max_length=utils.MAX_DISPLAY_NAME_CHARACTERS, allow_blank=False
+    )
 
 
 class ExternalProcessEventSerializer(BaseValidationOnlySerializer):
