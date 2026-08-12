@@ -4,7 +4,7 @@ import { HStack, VStack } from '@/styled-system/jsx'
 import { Text } from '@/primitives/Text'
 import { useTranslation } from 'react-i18next'
 import { Avatar } from '@/components/Avatar'
-import { getParticipantColor } from '@/features/rooms/utils/getParticipantColor'
+import { useParticipantColor } from '@/features/rooms/livekit/hooks/useParticipantColor'
 import {
   getParticipantIsRoomAdmin,
   getParticipantIsRoomOwner,
@@ -100,6 +100,7 @@ type ParticipantListItemProps = {
 }
 
 export const ParticipantRow = ({ participant }: ParticipantListItemProps) => {
+  const participantColor = useParticipantColor(participant)
   const { t } = useTranslation('rooms')
   const name = participant.name || participant.identity
   return (
@@ -114,7 +115,7 @@ export const ParticipantRow = ({ participant }: ParticipantListItemProps) => {
     >
       <HStack flex="1" minW="0">
         <div className={css({ position: 'relative', flexShrink: 0 })}>
-          <Avatar name={name} bgColor={getParticipantColor(participant)} />
+          <Avatar name={name} bgColor={participantColor} />
           <PinBadge participant={participant} />
           <UnauthenticatedBadge participant={participant} />
         </div>
