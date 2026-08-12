@@ -207,7 +207,7 @@ def test_request_entry_public_room(settings):
     with (
         mock.patch.object(utils, "notify_participants", return_value=None),
         mock.patch.object(
-            LobbyService, "_get_or_create_participant_id", return_value="123"
+            LobbyService, "get_or_create_participant_id", return_value="123"
         ),
         mock.patch.object(
             utils, "generate_livekit_config", return_value={"token": "test-token"}
@@ -258,7 +258,7 @@ def test_request_entry_authenticated_user_public_room(settings):
         mock.patch.object(utils, "notify_participants", return_value=None),
         mock.patch.object(
             LobbyService,
-            "_get_or_create_participant_id",
+            "get_or_create_participant_id",
             return_value="2f7f162f-e7d1-421b-90e7-02bfbfbf8def",
         ),
         mock.patch.object(

@@ -140,7 +140,7 @@ def test_get_or_create_participant_id_from_cookie(lobby_service):
     request = mock.Mock()
     request.COOKIES = {settings.LOBBY_COOKIE_NAME: "existing-id"}
 
-    participant_id = lobby_service._get_or_create_participant_id(request)
+    participant_id = lobby_service.get_or_create_participant_id(request)
 
     assert participant_id == "existing-id"
 
@@ -151,7 +151,7 @@ def test_get_or_create_participant_id_new(mock_uuid4, lobby_service):
     request = mock.Mock()
     request.COOKIES = {}
 
-    participant_id = lobby_service._get_or_create_participant_id(request)
+    participant_id = lobby_service.get_or_create_participant_id(request)
 
     assert participant_id == "generated-id"
     mock_uuid4.assert_called_once()
@@ -266,7 +266,7 @@ def test_request_entry_public_room(
         color="#123456",
     )
 
-    lobby_service._get_or_create_participant_id = mock.Mock(return_value=participant_id)
+    lobby_service.get_or_create_participant_id = mock.Mock(return_value=participant_id)
     lobby_service._get_participant = mock.Mock(return_value=mocked_participant)
     mock_generate_config.return_value = {"token": "test-token"}
 
@@ -282,6 +282,7 @@ def test_request_entry_public_room(
         configuration=room.configuration,
         participant_id="test-participant-id",
         role=None,
+        joining=True,
     )
 
     lobby_service._get_participant.assert_called_once_with(room.id, participant_id)
@@ -304,7 +305,7 @@ def test_request_entry_trusted_room(
         color="#123456",
     )
 
-    lobby_service._get_or_create_participant_id = mock.Mock(return_value=participant_id)
+    lobby_service.get_or_create_participant_id = mock.Mock(return_value=participant_id)
     lobby_service._get_participant = mock.Mock(return_value=mocked_participant)
     mock_generate_config.return_value = {"token": "test-token"}
 
@@ -320,6 +321,7 @@ def test_request_entry_trusted_room(
         configuration=room.configuration,
         participant_id="test-participant-id",
         role=None,
+        joining=True,
     )
 
     lobby_service._get_participant.assert_called_once_with(room.id, participant_id)
@@ -336,7 +338,7 @@ def test_request_entry_new_participant(
 
     room = RoomFactory(access_level=RoomAccessLevel.RESTRICTED)
 
-    lobby_service._get_or_create_participant_id = mock.Mock(return_value=participant_id)
+    lobby_service.get_or_create_participant_id = mock.Mock(return_value=participant_id)
     lobby_service._get_participant = mock.Mock(return_value=None)
 
     participant_data = LobbyParticipant(
@@ -372,7 +374,7 @@ def test_request_entry_waiting_participant(
         id=participant_id,
         color="#123456",
     )
-    lobby_service._get_or_create_participant_id = mock.Mock(return_value=participant_id)
+    lobby_service.get_or_create_participant_id = mock.Mock(return_value=participant_id)
     lobby_service._get_participant = mock.Mock(return_value=mocked_participant)
 
     participant, livekit_config = lobby_service.request_entry(room, request, username)
@@ -400,7 +402,7 @@ def test_request_entry_accepted_participant(
         id=participant_id,
         color="#123456",
     )
-    lobby_service._get_or_create_participant_id = mock.Mock(return_value=participant_id)
+    lobby_service.get_or_create_participant_id = mock.Mock(return_value=participant_id)
     lobby_service._get_participant = mock.Mock(return_value=mocked_participant)
 
     mock_generate_config.return_value = {"token": "test-token"}
@@ -417,6 +419,7 @@ def test_request_entry_accepted_participant(
         configuration=room.configuration,
         participant_id="test-participant-id",
         role=None,
+        joining=True,
     )
     lobby_service._get_participant.assert_called_once_with(room.id, participant_id)
 
@@ -440,7 +443,7 @@ def test_request_entry_participant_with_role(
         id=participant_id,
         color="#123456",
     )
-    lobby_service._get_or_create_participant_id = mock.Mock(return_value=participant_id)
+    lobby_service.get_or_create_participant_id = mock.Mock(return_value=participant_id)
     lobby_service._get_participant = mock.Mock(return_value=mocked_participant)
 
     mock_generate_config.return_value = {"token": "test-token"}
@@ -457,6 +460,7 @@ def test_request_entry_participant_with_role(
         configuration=room.configuration,
         participant_id="test-participant-id",
         role="administrator",
+        joining=True,
     )
     lobby_service._get_participant.assert_called_once_with(room.id, participant_id)
 

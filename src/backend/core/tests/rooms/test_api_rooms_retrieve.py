@@ -136,7 +136,14 @@ def test_api_rooms_retrieve_anonymous_unregistered_allowed(mock_token):
     }
 
     mock_token.assert_called_once_with(
-        room="unregistered-room", user=AnonymousUser(), username=None
+        room="unregistered-room",
+        user=AnonymousUser(),
+        username=None,
+        color=None,
+        sources=None,
+        role=None,
+        participant_id=mock.ANY,
+        display_name=None,
     )
 
 
@@ -171,7 +178,14 @@ def test_api_rooms_retrieve_anonymous_unregistered_allowed_not_normalized(mock_t
     }
 
     mock_token.assert_called_once_with(
-        room="reunion", user=AnonymousUser(), username=None
+        room="reunion",
+        user=AnonymousUser(),
+        username=None,
+        color=None,
+        sources=None,
+        role=None,
+        participant_id=mock.ANY,
+        display_name=None,
     )
 
 
@@ -272,7 +286,8 @@ def test_api_rooms_retrieve_authenticated_public(mock_token):
         color=None,
         sources=["camera"],
         role=None,
-        participant_id=None,
+        participant_id=str(user.sub),
+        display_name=None,
     )
 
 
@@ -323,7 +338,8 @@ def test_api_rooms_retrieve_authenticated_trusted(mock_token):
         color=None,
         sources=None,
         role=None,
-        participant_id=None,
+        participant_id=str(user.sub),
+        display_name=None,
     )
 
 
@@ -409,7 +425,8 @@ def test_api_rooms_retrieve_members(mock_token, django_assert_num_queries, setti
         color=None,
         sources=["camera"],
         role=str(RoleChoices.MEMBER),
-        participant_id=None,
+        participant_id=str(user.sub),
+        display_name=None,
     )
 
 
@@ -505,5 +522,18 @@ def test_api_rooms_retrieve_administrators(
         color=None,
         sources=None,
         role=str(user_access.role),
-        participant_id=None,
+        participant_id=str(user.sub),
+        display_name=None,
     )
+
+
+def test_api_rooms_retrieve_without_a_username_reads_no_room(
+    mock_list_participant_names,
+):
+    """Reading a room's settings carries no name, so it costs no LiveKit call."""
+    room = RoomFactory(access_level=RoomAccessLevel.PUBLIC)
+
+    response = APIClient().get(f"/api/v1.0/rooms/{room.id!s}/")
+
+    assert response.status_code == 200
+    mock_list_participant_names.assert_not_called()

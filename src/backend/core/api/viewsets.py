@@ -270,7 +270,19 @@ class RoomViewSet(
         """
         Allow unregistered rooms when activated.
         For unregistered rooms we only return a null id and the livekit room and token.
+
+        A request carrying a username is someone about to join, so their
+        display name is checked against the room's participants, at the cost of
+        one LiveKit call. An anonymous participant is given their participant
+        id back as a cookie, so a reload rejoins under the same identity rather
+        than as a second participant holding a taken name.
         """
+        participant_id = (
+            LobbyService.get_or_create_participant_id(request)
+            if request.user.is_anonymous
+            else None
+        )
+
         try:
             instance = self.get_object()
         except Http404:
@@ -283,18 +295,29 @@ class RoomViewSet(
                 "slug": slug,
                 "is_administrable": False,
                 "access_level": RoomAccessLevel.PUBLIC,
-                "livekit": {
-                    "url": settings.LIVEKIT_CONFIGURATION["url"],
-                    "room": slug,
-                    "token": utils.generate_token(
-                        room=slug, user=request.user, username=username
-                    ),
-                },
+                "livekit": utils.generate_livekit_config(
+                    room_id=slug,
+                    user=request.user,
+                    username=username,
+                    participant_id=participant_id,
+                    joining=username is not None,
+                ),
             }
         else:
-            data = self.get_serializer(instance).data
+            data = self.get_serializer(
+                instance,
+                context={
+                    **self.get_serializer_context(),
+                    "participant_id": participant_id,
+                },
+            ).data
 
-        return drf_response.Response(data)
+        response = drf_response.Response(data)
+
+        if participant_id:
+            LobbyService.prepare_response(response, participant_id)
+
+        return response
 
     def list(self, request, *args, **kwargs):
         """Limit listed rooms to the ones related to the authenticated user."""
@@ -955,7 +978,9 @@ class RoomViewSet(
             ParticipantsManagement().update(
                 room_name=str(room.pk),
                 identity=identity,
-                name=serializer.validated_data["name"],
+                name=utils.unique_display_name_in_room(
+                    str(room.pk), identity, serializer.validated_data["name"]
+                ),
             )
         except ParticipantNotFoundException:
             return drf_response.Response(

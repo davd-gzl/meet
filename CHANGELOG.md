@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(backend) number a display name already taken in the room
+
 ## [1.26.0] - 2026-08-12
 
 ### Added
