@@ -7,15 +7,24 @@ on:
   pull_request:
     branches:
       - "*"
+  workflow_call:
+    inputs:
+      base_ref:
+        description: branch the commits are compared against
+        type: string
+        default: main
 permissions:
   contents: read
 
 jobs:
   lint-git:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' # Makes sense only for pull requests
+    # Makes sense only for a set of commits proposed on top of a branch
+    if: github.event_name == 'pull_request' || inputs.base_ref != ''
     permissions:
       contents: read
+    env:
+      BASE_REF: ${{ inputs.base_ref || github.event.pull_request.base.ref }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -26,7 +35,7 @@ jobs:
       - name: Enforce absence of print statements in code
         if: always()
         run: |
-          ! git diff origin/${{ github.event.pull_request.base.ref }}..HEAD -- . ':(exclude)**/meet.yml' | grep "print("
+          ! git diff origin/$BASE_REF..HEAD -- . ':(exclude)**/meet.yml' | grep "print("
       - name: Check absence of fixup commits
         if: always()
         run: |
@@ -36,7 +45,7 @@ jobs:
         run: pip install --user requests gitlint
       - name: Lint commit messages added to main
         if: always()
-        run: ~/.local/bin/gitlint --commits origin/${{ github.event.pull_request.base.ref }}..HEAD
+        run: ~/.local/bin/gitlint --commits origin/$BASE_REF..HEAD
 
   check-changelog:
     runs-on: ubuntu-latest

@@ -60,6 +60,8 @@ It is nice to add information about the purpose of the pull request to help revi
 - check the tests: `make test`
 - add a changelog entry
 
+If you work from a fork, enable GitHub Actions on it once, from its Actions tab. Every push to one of your branches then runs the same checks the pull request will, which matters because a pull request from a first-time contributor holds its run until a maintainer approves it.
+
 Once all the required tests have passed, you can request a review from the project maintainers.
 
 ## Code Style

@@ -1,0 +1,18 @@
+name: fork checks
+
+# A pull request from a first-time contributor holds every workflow run until a
+# maintainer approves it. This one runs in the fork instead, on every branch
+# including its main, so the checks report before the pull request exists.
+on:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  meet:
+    # This repository already runs these on push to main and on pull_request.
+    if: github.repository != 'suitenumerique/meet'
+    uses: ./.github/workflows/meet.yml
+    with:
+      base_ref: main
