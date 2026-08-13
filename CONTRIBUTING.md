@@ -59,8 +59,9 @@ It is nice to add information about the purpose of the pull request to help revi
 - check the linting: `make lint && make frontend-lint`
 - check the tests: `make test`
 - add a changelog entry
+- if you work from a fork, enable GitHub Actions on it once, from its Actions tab, so a push to one of your branches runs these checks before the pull request exists
 
-If you work from a fork, enable GitHub Actions on it once, from its Actions tab. Every push to one of your branches then runs the same checks the pull request will, which matters because a pull request from a first-time contributor holds its run until a maintainer approves it.
+A pull request from a first-time contributor holds its run until a maintainer approves it, which is what the fork run is for. It covers every check except the one that reads the pull request itself, so a missing changelog entry still surfaces only once the run is approved.
 
 Once all the required tests have passed, you can request a review from the project maintainers.
 

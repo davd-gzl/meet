@@ -9,12 +9,8 @@ on:
       - "*"
   workflow_call:
     inputs:
-      base_ref:
-        description: branch the commits are compared against
-        type: string
-        default: main
       base_repo:
-        description: repository that branch is taken from, when it is not this one
+        description: repository the commits are proposed to, when it is not this one
         type: string
         default: ""
 permissions:
@@ -23,21 +19,21 @@ permissions:
 jobs:
   lint-git:
     runs-on: ubuntu-latest
-    # Makes sense only for a set of commits proposed on top of a branch
-    if: github.event_name == 'pull_request' || inputs.base_ref != ''
+    if: github.event_name == 'pull_request' || inputs.base_repo != '' # Makes sense only for proposed commits
     permissions:
       contents: read
     env:
-      BASE_REF: ${{ inputs.base_ref || github.event.pull_request.base.ref }}
+      BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
+      BASE_REPO: ${{ inputs.base_repo }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Take the base branch from the repository the commits are proposed to
+      - name: Fetch the base branch from upstream
         if: inputs.base_repo != ''
         run: |
-          git fetch --no-tags --force ${{ inputs.base_repo }} $BASE_REF:refs/remotes/origin/$BASE_REF
+          git fetch --no-tags --force "$BASE_REPO" $BASE_REF:refs/remotes/origin/$BASE_REF
       - name: show
         run: git log
       - name: Enforce absence of print statements in code

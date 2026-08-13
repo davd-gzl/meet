@@ -1,19 +1,39 @@
 name: fork checks
 
-# A pull request from a first-time contributor holds every workflow run until a
-# maintainer approves it. This one runs in the fork instead, on every branch
-# including its main, so the checks report before the pull request exists.
+# Runs the pull-request checks in a fork, where they are not held for approval.
 on:
   push:
+    branches-ignore:
+      - main
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  upstream:
+    # A repository that is nobody's fork runs these on push and on pull_request.
+    if: github.event.repository.fork
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      clone_url: ${{ steps.parent.outputs.clone_url }}
+    steps:
+      - name: Read the repository this one was forked from
+        id: parent
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "clone_url=$(gh api "repos/$GITHUB_REPOSITORY" --jq '.parent.clone_url')" >> "$GITHUB_OUTPUT"
+
   meet:
-    # This repository already runs these on push to main and on pull_request.
-    if: github.repository != 'suitenumerique/meet'
+    needs: upstream
+    permissions:
+      contents: read
     uses: ./.github/workflows/meet.yml
     with:
-      base_ref: main
-      base_repo: https://github.com/suitenumerique/meet
+      base_repo: ${{ needs.upstream.outputs.clone_url }}
