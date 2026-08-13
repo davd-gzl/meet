@@ -37,7 +37,7 @@ jobs:
       - name: Enforce absence of print statements in code
         if: always()
         run: |
-          ! git diff origin/$BASE_REF..HEAD -- . ':(exclude)**/ci.yml' | grep "print("
+          ! git diff origin/$BASE_REF...HEAD -- . ':(exclude).github/workflows/**' | grep "print("
       - name: Check absence of fixup commits
         if: always()
         run: |
