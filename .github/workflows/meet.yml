@@ -13,6 +13,10 @@ on:
         description: branch the commits are compared against
         type: string
         default: main
+      base_repo:
+        description: repository that branch is taken from, when it is not this one
+        type: string
+        default: ""
 permissions:
   contents: read
 
@@ -30,6 +34,10 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - name: Take the base branch from the repository the commits are proposed to
+        if: inputs.base_repo != ''
+        run: |
+          git fetch --no-tags --force ${{ inputs.base_repo }} $BASE_REF:refs/remotes/origin/$BASE_REF
       - name: show
         run: git log
       - name: Enforce absence of print statements in code

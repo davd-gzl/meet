@@ -16,3 +16,4 @@ jobs:
     uses: ./.github/workflows/meet.yml
     with:
       base_ref: main
+      base_repo: https://github.com/suitenumerique/meet
