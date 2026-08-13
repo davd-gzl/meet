@@ -19,4 +19,4 @@ jobs:
     if: github.event.repository.fork
     permissions:
       contents: read
-    uses: ./.github/workflows/meet.yml
+    uses: ./.github/workflows/ci.yml
