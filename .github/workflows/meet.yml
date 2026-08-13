@@ -8,32 +8,30 @@ on:
     branches:
       - "*"
   workflow_call:
-    inputs:
-      base_repo:
-        description: repository the commits are proposed to, when it is not this one
-        type: string
-        default: ""
 permissions:
   contents: read
 
 jobs:
   lint-git:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || inputs.base_repo != '' # Makes sense only for proposed commits
+    if: github.event_name == 'pull_request' || github.event.repository.fork # Makes sense only for proposed commits
     permissions:
       contents: read
     env:
       BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
-      BASE_REPO: ${{ inputs.base_repo }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Fetch the base branch from upstream
-        if: inputs.base_repo != ''
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git fetch --no-tags --force "$BASE_REPO" $BASE_REF:refs/remotes/origin/$BASE_REF
+          git fetch --no-tags --force \
+            "$(gh api "repos/$GITHUB_REPOSITORY" --jq '.parent.clone_url')" \
+            "$BASE_REF:refs/remotes/origin/$BASE_REF"
       - name: show
         run: git log
       - name: Enforce absence of print statements in code
