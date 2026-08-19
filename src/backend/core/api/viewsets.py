@@ -8,6 +8,7 @@ from urllib.parse import unquote, urlparse
 from uuid import uuid4
 
 from django.conf import settings
+from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.storage import default_storage
 from django.db import IntegrityError, transaction
@@ -396,15 +397,14 @@ class RoomViewSet(
     @decorators.action(
         detail=True,
         methods=["get"],
-        url_path="participants-count",
-        url_name="participants-count",
-        permission_classes=[],
+        url_path="participants",
+        url_name="participants",
         throttle_classes=[
-            throttling.ParticipantsCountUserRateThrottle,
-            throttling.ParticipantsCountAnonRateThrottle,
+            throttling.ParticipantsUserRateThrottle,
+            throttling.ParticipantsAnonRateThrottle,
         ],
     )
-    def participants_count(self, request, pk=None):  # pylint: disable=unused-argument
+    def participants(self, request, pk=None):  # pylint: disable=unused-argument
         """Return how many people are currently in the room's meeting.
 
         Open to anonymous users, and only to the ones the room would let in
@@ -422,19 +422,30 @@ class RoomViewSet(
             # LiveKit, exactly as the token the retrieve endpoint mints for it.
             livekit_room = slugify(self.kwargs["pk"])
         else:
-            if not room.is_joinable_by(request.user):
+            if not room.is_joinable_by(request.user, room.get_role(request.user)):
                 raise Http404
             livekit_room = str(room.id)
 
-        try:
-            count = RoomManagement().get_participants_count(livekit_room)
-        except RoomManagementException:
-            return drf_response.Response(
-                {"detail": "Could not reach the meeting."},
-                status=drf_status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
+        # The join screen polls this, so everyone waiting on one meeting asks the
+        # same question at once. Holding the answer for less than one poll turns
+        # them into a single call to LiveKit however many they are.
+        cache_key = f"room_participants_{livekit_room:s}"
+        participants = cache.get(cache_key)
 
-        return drf_response.Response({"count": count})
+        if participants is None:
+            try:
+                participants = {
+                    "count": RoomManagement().get_participants_count(livekit_room)
+                }
+            except RoomManagementException:
+                return drf_response.Response(
+                    {"error": "Could not reach the meeting."},
+                    status=drf_status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+
+            cache.set(cache_key, participants, settings.ROOM_PARTICIPANTS_CACHE_SECONDS)
+
+        return drf_response.Response(participants)
 
     @decorators.action(
         detail=True,

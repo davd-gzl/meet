@@ -87,16 +87,35 @@ class RoomKitJoinRateThrottle(MonitoredUserRateThrottle):
     scope = "roomkit_join"
 
 
-class ParticipantsCountUserRateThrottle(MonitoredUserRateThrottle):
-    """Throttle authenticated users polling a room's participants count."""
+class ParticipantsUserRateThrottle(MonitoredUserRateThrottle):
+    """Throttle authenticated users polling who is in a room's meeting."""
 
-    scope = "participants_count"
+    scope = "participants"
+
+    def get_cache_key(self, request, view):
+        """Use the authenticated user ID as the throttle cache key.
+
+        Without this, an anonymous request is counted twice: UserRateThrottle
+        falls back to the IP address, which is the key ParticipantsAnonRate
+        Throttle already uses under the same scope, so each request spends two
+        of the allowance and the limit is silently halved.
+        """
+
+        if request.user and not request.user.is_authenticated:
+            return None  # Defer to ParticipantsAnonRateThrottle.
+
+        return super().get_cache_key(request, view)
 
 
-class ParticipantsCountAnonRateThrottle(MonitoredAnonRateThrottle):
-    """Throttle anonymous users polling a room's participants count."""
+class ParticipantsAnonRateThrottle(MonitoredAnonRateThrottle):
+    """Throttle anonymous users polling who is in a room's meeting.
 
-    scope = "participants_count"
+    Keyed on the IP address, which everyone behind one office router shares, so
+    the rate has to cover a roomful of them polling at once rather than one
+    person.
+    """
+
+    scope = "participants"
 
 
 class ConnectionTestUserRateThrottle(MonitoredUserRateThrottle):

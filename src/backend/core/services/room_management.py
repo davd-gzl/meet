@@ -108,13 +108,15 @@ class RoomManagement:
         try:
             response = await lkapi.room.list_rooms(ListRoomsRequest(names=[room_name]))
 
-        # A LiveKit outage would otherwise surface as a 500 on every poll of the
-        # join screen, so the connection error is turned into the same failure
-        # as a refusal.
-        except (TwirpError, aiohttp.ClientError) as e:
+        except TwirpError as e:
+            logger.exception("Unexpected error counting participants in %s", room_name)
+            raise RoomManagementException("Could not count participants") from e
+
+        # An unreachable LiveKit would otherwise surface as a 500 on every poll
+        # of the join screen, so it fails the same way as a refusal.
+        except aiohttp.ClientError as e:
             logger.exception(
-                "Unexpected error counting participants in room %s",
-                room_name,
+                "Could not reach LiveKit counting participants of %s", room_name
             )
             raise RoomManagementException("Could not count participants") from e
 

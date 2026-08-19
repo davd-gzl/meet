@@ -15,13 +15,32 @@ from core.services.room_management import (
 )
 
 
+def livekit_client(mock_create_livekit_client, **calls):
+    """Wire a mocked LiveKit client, one keyword per room method under test.
+
+    An exception becomes that call's side effect, anything else its return
+    value. Every test needs the same four lines otherwise.
+    """
+    mock_api = mock.MagicMock()
+
+    for name, outcome in calls.items():
+        answer = (
+            {"side_effect": outcome}
+            if isinstance(outcome, Exception)
+            else {"return_value": outcome}
+        )
+        setattr(mock_api.room, name, mock.AsyncMock(**answer))
+
+    mock_api.aclose = mock.AsyncMock()
+    mock_create_livekit_client.return_value = mock_api
+
+    return mock_api
+
+
 @mock.patch("core.services.room_management.utils.create_livekit_client")
 def test_delete_room_calls_livekit(mock_create_livekit_client):
     """DeleteRoom is forwarded to the LiveKit API."""
-    mock_api = mock.MagicMock()
-    mock_api.room.delete_room = mock.AsyncMock()
-    mock_api.aclose = mock.AsyncMock()
-    mock_create_livekit_client.return_value = mock_api
+    mock_api = livekit_client(mock_create_livekit_client, delete_room=None)
 
     RoomManagement().delete_room("room-abc")
 
@@ -34,12 +53,10 @@ def test_delete_room_calls_livekit(mock_create_livekit_client):
 @mock.patch("core.services.room_management.utils.create_livekit_client")
 def test_delete_room_raises_not_found(mock_create_livekit_client):
     """Missing rooms raise RoomNotFoundException."""
-    mock_api = mock.MagicMock()
-    mock_api.room.delete_room = mock.AsyncMock(
-        side_effect=TwirpError("not_found", "room not found", status=404)
+    mock_api = livekit_client(
+        mock_create_livekit_client,
+        delete_room=TwirpError("not_found", "room not found", status=404),
     )
-    mock_api.aclose = mock.AsyncMock()
-    mock_create_livekit_client.return_value = mock_api
 
     with pytest.raises(RoomNotFoundException):
         RoomManagement().delete_room("missing-room")
@@ -50,12 +67,10 @@ def test_delete_room_raises_not_found(mock_create_livekit_client):
 @mock.patch("core.services.room_management.utils.create_livekit_client")
 def test_delete_room_raises_management_exception(mock_create_livekit_client):
     """Unexpected Twirp errors raise RoomManagementException."""
-    mock_api = mock.MagicMock()
-    mock_api.room.delete_room = mock.AsyncMock(
-        side_effect=TwirpError("internal", "boom", status=500)
+    mock_api = livekit_client(
+        mock_create_livekit_client,
+        delete_room=TwirpError("internal", "boom", status=500),
     )
-    mock_api.aclose = mock.AsyncMock()
-    mock_create_livekit_client.return_value = mock_api
 
     with pytest.raises(RoomManagementException):
         RoomManagement().delete_room("room-abc")
@@ -66,14 +81,12 @@ def test_delete_room_raises_management_exception(mock_create_livekit_client):
 @mock.patch("core.services.room_management.utils.create_livekit_client")
 def test_get_participants_count_reads_livekit(mock_create_livekit_client):
     """The count is the one LiveKit reports for the room."""
-    mock_api = mock.MagicMock()
-    mock_api.room.list_rooms = mock.AsyncMock(
-        return_value=ListRoomsResponse(
+    mock_api = livekit_client(
+        mock_create_livekit_client,
+        list_rooms=ListRoomsResponse(
             rooms=[LiveKitRoom(name="room-abc", num_participants=3)]
-        )
+        ),
     )
-    mock_api.aclose = mock.AsyncMock()
-    mock_create_livekit_client.return_value = mock_api
 
     assert RoomManagement().get_participants_count("room-abc") == 3
 
@@ -87,10 +100,9 @@ def test_get_participants_count_of_a_room_livekit_does_not_know(
     mock_create_livekit_client,
 ):
     """A room LiveKit has never created has nobody in it."""
-    mock_api = mock.MagicMock()
-    mock_api.room.list_rooms = mock.AsyncMock(return_value=ListRoomsResponse(rooms=[]))
-    mock_api.aclose = mock.AsyncMock()
-    mock_create_livekit_client.return_value = mock_api
+    mock_api = livekit_client(
+        mock_create_livekit_client, list_rooms=ListRoomsResponse(rooms=[])
+    )
 
     assert RoomManagement().get_participants_count("room-abc") == 0
 
@@ -109,10 +121,7 @@ def test_get_participants_count_raises_management_exception(
     mock_create_livekit_client, error
 ):
     """A refusal and an unreachable server both fail the same way."""
-    mock_api = mock.MagicMock()
-    mock_api.room.list_rooms = mock.AsyncMock(side_effect=error)
-    mock_api.aclose = mock.AsyncMock()
-    mock_create_livekit_client.return_value = mock_api
+    mock_api = livekit_client(mock_create_livekit_client, list_rooms=error)
     service = RoomManagement()
 
     with pytest.raises(RoomManagementException):

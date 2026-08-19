@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
 import { Text } from '@/primitives'
-import { useParticipantsCount } from '../hooks/useParticipantsCount'
+import { useJoinParticipantsCount } from '../hooks/useJoinParticipantsCount'
 
 // <output> is a live region already, so a screen reader reads the line again
 // when the meeting changes without the element announcing itself as a form value.
@@ -18,7 +18,7 @@ const lines = css({
  */
 export const JoinParticipantsCount = ({ roomId }: { roomId: string }) => {
   const { t } = useTranslation('rooms', { keyPrefix: 'join.participants' })
-  const count = useParticipantsCount(roomId)
+  const count = useJoinParticipantsCount(roomId)
 
   if (count === undefined) {
     return null

@@ -5,4 +5,4 @@ export type ApiParticipantsCount = {
 }
 
 export const fetchParticipantsCount = ({ roomId }: { roomId: string }) =>
-  fetchApi<ApiParticipantsCount>(`/rooms/${roomId}/participants-count/`)
+  fetchApi<ApiParticipantsCount>(`/rooms/${roomId}/participants/`)

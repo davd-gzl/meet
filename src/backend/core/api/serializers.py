@@ -185,9 +185,7 @@ class RoomSerializer(serializers.ModelSerializer):
             )
             output["accesses"] = access_serializer.data
 
-        should_access_room = instance.is_joinable_by(
-            request.user, has_role=role is not None
-        )
+        should_access_room = instance.is_joinable_by(request.user, role)
 
         if should_access_room:
             room_id = f"{instance.id!s}"

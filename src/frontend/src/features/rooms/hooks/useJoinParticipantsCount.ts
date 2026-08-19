@@ -6,18 +6,23 @@ export const POLL_INTERVAL_MS = 5000
 
 /**
  * How many people are in the meeting, refreshed while the join screen is open.
+ * Named apart from livekit's own useParticipants, which answers a nearby
+ * question from inside the meeting.
  *
  * The answer is `undefined` until it arrives, and stays `undefined` for a room
  * the API will not report on, which is every room the caller cannot enter
  * without approval.
  */
-export const useParticipantsCount = (roomId: string) => {
+export const useJoinParticipantsCount = (roomId: string) => {
   const { data } = useQuery({
-    queryKey: [keys.participantsCount, roomId],
+    queryKey: [keys.participants, roomId],
     queryFn: () => fetchParticipantsCount({ roomId }),
     // A room that refuses once refuses for as long as this screen is open, so
     // the poll stops rather than asking every five seconds for nothing.
     refetchInterval: (query) => (query.state.error ? false : POLL_INTERVAL_MS),
+    // Coming back to the tab is worth a refresh, and without this every one of
+    // them fires a fetch on top of the interval.
+    staleTime: POLL_INTERVAL_MS,
     retry: false,
   })
 

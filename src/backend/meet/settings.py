@@ -359,9 +359,9 @@ class Base(Configuration):
                 environ_name="CONNECTION_TEST_THROTTLE_RATES",
                 environ_prefix=None,
             ),
-            "participants_count": values.Value(
-                default="60/minute",
-                environ_name="PARTICIPANTS_COUNT_THROTTLE_RATES",
+            "participants": values.Value(
+                default="180/minute",
+                environ_name="PARTICIPANTS_THROTTLE_RATES",
                 environ_prefix=None,
             ),
         },
@@ -706,6 +706,12 @@ class Base(Configuration):
     )
     ALLOW_UNREGISTERED_ROOMS = values.BooleanValue(
         True, environ_name="ALLOW_UNREGISTERED_ROOMS", environ_prefix=None
+    )
+    # How long the join screen's view of a meeting is held. Shorter than the
+    # interval it polls on, so everyone waiting on one meeting costs LiveKit one
+    # call rather than one each. Zero turns the cache off.
+    ROOM_PARTICIPANTS_CACHE_SECONDS = values.IntegerValue(
+        4, environ_name="ROOM_PARTICIPANTS_CACHE_SECONDS", environ_prefix=None
     )
     # if provided, treat as suspicious (possible privilege escalation attempt).
     PARTICIPANT_FORBIDDEN_PERMISSION_FIELDS = values.ListValue(

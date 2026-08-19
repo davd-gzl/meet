@@ -483,18 +483,17 @@ class Room(Resource):
         """Check if a room is public"""
         return self.access_level == RoomAccessLevel.PUBLIC
 
-    def is_joinable_by(self, user, has_role=None):
-        """Check if a user can enter the room without asking for approval.
+    def is_joinable_by(self, user, role):
+        """Check if a user can enter the room without waiting for approval.
 
-        This is the rule applied before handing out a LiveKit token, so anything
-        answering a question about a live meeting asks it without repeating the
-        condition. Pass `has_role` when the caller has already resolved whether
-        the user holds a role, which is a query this makes otherwise.
+        A public room admits everyone, a trusted one everyone signed in, and a
+        restricted one whoever holds a role on it. `role` is the user's role,
+        which every caller has already resolved.
         """
         return (
             self.is_public
             or (self.access_level == RoomAccessLevel.TRUSTED and user.is_authenticated)
-            or (self.has_any_role(user) if has_role is None else has_role)
+            or role is not None
         )
 
     @staticmethod
