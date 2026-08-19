@@ -2,6 +2,8 @@
 
 from unittest import mock
 
+from django.conf import settings
+
 import aiohttp
 import pytest
 from livekit.api import TwirpError
@@ -114,13 +116,14 @@ def test_get_participants_count_of_a_room_livekit_does_not_know(
     [
         TwirpError("internal", "boom", status=500),
         aiohttp.ClientConnectorError(mock.Mock(), OSError("connection refused")),
+        TimeoutError(),
     ],
 )
 @mock.patch("core.services.room_management.utils.create_livekit_client")
 def test_get_participants_count_raises_management_exception(
     mock_create_livekit_client, error
 ):
-    """A refusal and an unreachable server both fail the same way."""
+    """A refusal, an unreachable server and a slow one all fail the same way."""
     mock_api = livekit_client(mock_create_livekit_client, list_rooms=error)
     service = RoomManagement()
 
@@ -128,3 +131,14 @@ def test_get_participants_count_raises_management_exception(
         service.get_participants_count("room-abc")
 
     mock_api.aclose.assert_awaited_once()
+
+
+@mock.patch("core.services.room_management.utils.create_livekit_client")
+def test_get_participants_count_bounds_how_long_it_waits(mock_create_livekit_client):
+    """The join screen must not hold a worker for the client's own minute."""
+    livekit_client(mock_create_livekit_client, list_rooms=ListRoomsResponse(rooms=[]))
+
+    RoomManagement().get_participants_count("room-abc")
+
+    timeout = mock_create_livekit_client.call_args.kwargs["timeout"]
+    assert timeout.total == settings.ROOM_PARTICIPANTS_TIMEOUT_SECONDS

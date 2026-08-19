@@ -6,6 +6,8 @@ import json
 from logging import getLogger
 from typing import Dict, Optional
 
+from django.conf import settings
+
 import aiohttp
 from asgiref.sync import async_to_sync
 from livekit.api import (
@@ -103,7 +105,14 @@ class RoomManagement:
             RoomManagementException: the count could not be read.
         """
 
-        lkapi = utils.create_livekit_client()
+        # The join screen reaches this without anyone clicking anything, and the
+        # workers are three, so a LiveKit that has stopped answering must not
+        # hold one for the minute the client would wait by default.
+        lkapi = utils.create_livekit_client(
+            timeout=aiohttp.ClientTimeout(
+                total=settings.ROOM_PARTICIPANTS_TIMEOUT_SECONDS
+            )
+        )
 
         try:
             response = await lkapi.room.list_rooms(ListRoomsRequest(names=[room_name]))
@@ -113,8 +122,9 @@ class RoomManagement:
             raise RoomManagementException("Could not count participants") from e
 
         # An unreachable LiveKit would otherwise surface as a 500 on every poll
-        # of the join screen, so it fails the same way as a refusal.
-        except aiohttp.ClientError as e:
+        # of the join screen, so it fails the same way as a refusal. A total
+        # timeout raises TimeoutError, which is no kind of ClientError.
+        except (aiohttp.ClientError, TimeoutError) as e:
             logger.exception(
                 "Could not reach LiveKit counting participants of %s", room_name
             )

@@ -713,6 +713,10 @@ class Base(Configuration):
     ROOM_PARTICIPANTS_CACHE_SECONDS = values.IntegerValue(
         4, environ_name="ROOM_PARTICIPANTS_CACHE_SECONDS", environ_prefix=None
     )
+    # How long the join screen waits on LiveKit before giving up on it.
+    ROOM_PARTICIPANTS_TIMEOUT_SECONDS = values.IntegerValue(
+        3, environ_name="ROOM_PARTICIPANTS_TIMEOUT_SECONDS", environ_prefix=None
+    )
     # if provided, treat as suspicious (possible privilege escalation attempt).
     PARTICIPANT_FORBIDDEN_PERMISSION_FIELDS = values.ListValue(
         ["hidden", "recorder", "agent"],
