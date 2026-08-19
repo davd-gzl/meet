@@ -65,7 +65,9 @@
     "participants": {
       "empty": "No one has joined yet",
       "count_one": "{{count}} person is already here",
-      "count_other": "{{count}} people are already here"
+      "count_other": "{{count}} people are already here",
+      "more_one": "{{count}} other",
+      "more_other": "{{count}} others"
     },
     "errors": {
       "usernameEmpty": "Your name cannot be empty"

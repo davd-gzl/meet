@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - ✨(fullstack) show how many people are in the meeting on the join screen
+- ✨(fullstack) name the people already in the meeting on the join screen
 
 ### Fixed
 

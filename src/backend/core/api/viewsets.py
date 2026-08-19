@@ -405,12 +405,15 @@ class RoomViewSet(
         ],
     )
     def participants_count(self, request, pk=None):  # pylint: disable=unused-argument
-        """Return how many people are currently in the room's meeting.
+        """Return how many people are in the room's meeting, and who they are.
 
         Open to anonymous users, and only to the ones the room would let in
         without approval: someone the retrieve endpoint already hands a token to
         learns nothing here they could not learn by joining, which is the point.
         Everyone else gets the same answer as a room that does not exist.
+
+        The count and the names can differ, because someone who gave no display
+        name is one of the people in the room and is named by nobody.
         """
 
         try:
@@ -427,14 +430,16 @@ class RoomViewSet(
             livekit_room = str(room.id)
 
         try:
-            count = RoomManagement().get_participants_count(livekit_room)
+            people = RoomManagement().get_participants(livekit_room)
         except RoomManagementException:
             return drf_response.Response(
                 {"detail": "Could not reach the meeting."},
                 status=drf_status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
-        return drf_response.Response({"count": count})
+        return drf_response.Response(
+            {"count": len(people), "names": [name for name in people if name]}
+        )
 
     @decorators.action(
         detail=True,

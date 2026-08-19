@@ -1,5 +1,5 @@
 """
-Test rooms API endpoints in the Meet core app: participants count.
+Test rooms API endpoints in the Meet core app: participants count and names.
 """
 
 # pylint: disable=redefined-outer-name,unused-argument,no-name-in-module
@@ -12,8 +12,8 @@ from django.urls import reverse
 
 import pytest
 from livekit.api import TwirpError
-from livekit.protocol.models import Room as LiveKitRoom
-from livekit.protocol.room import ListRoomsResponse
+from livekit.protocol.models import ParticipantInfo
+from livekit.protocol.room import ListParticipantsResponse
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -25,11 +25,11 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def mock_livekit_client():
-    """Mock LiveKit API client, reporting two people in every room."""
+    """Mock LiveKit API client, reporting Zora and Neel in every room."""
     with mock.patch("core.utils.create_livekit_client") as mock_create:
         mock_client = mock.AsyncMock()
-        mock_client.room.list_rooms.return_value = ListRoomsResponse(
-            rooms=[LiveKitRoom(num_participants=2)]
+        mock_client.room.list_participants.return_value = ListParticipantsResponse(
+            participants=[ParticipantInfo(name="Zora"), ParticipantInfo(name="Neel")]
         )
         mock_create.return_value = mock_client
         yield mock_client
@@ -44,10 +44,10 @@ def test_participants_count_anonymous_public_room(mock_livekit_client):
     )
 
     assert response.status_code == status.HTTP_200_OK
-    assert response.json() == {"count": 2}
+    assert response.json() == {"count": 2, "names": ["Zora", "Neel"]}
 
-    request = mock_livekit_client.room.list_rooms.call_args.args[0]
-    assert list(request.names) == [str(room.id)]
+    request = mock_livekit_client.room.list_participants.call_args.args[0]
+    assert request.room == str(room.id)
 
 
 def test_participants_count_by_slug(mock_livekit_client):
@@ -59,20 +59,37 @@ def test_participants_count_by_slug(mock_livekit_client):
     )
 
     assert response.status_code == status.HTTP_200_OK
-    assert response.json() == {"count": 2}
+    assert response.json() == {"count": 2, "names": ["Zora", "Neel"]}
 
 
 def test_participants_count_empty_meeting(mock_livekit_client):
     """A room LiveKit has never created reports nobody."""
     room = RoomFactory(access_level=RoomAccessLevel.PUBLIC)
-    mock_livekit_client.room.list_rooms.return_value = ListRoomsResponse(rooms=[])
+    mock_livekit_client.room.list_participants.side_effect = TwirpError(
+        "not_found", "room not found", status=404
+    )
 
     response = APIClient().get(
         reverse("rooms-participants-count", kwargs={"pk": room.id})
     )
 
     assert response.status_code == status.HTTP_200_OK
-    assert response.json() == {"count": 0}
+    assert response.json() == {"count": 0, "names": []}
+
+
+def test_participants_count_someone_who_gave_no_name(mock_livekit_client):
+    """An unnamed person is counted and named by nobody."""
+    room = RoomFactory(access_level=RoomAccessLevel.PUBLIC)
+    mock_livekit_client.room.list_participants.return_value = ListParticipantsResponse(
+        participants=[ParticipantInfo(name="Zora"), ParticipantInfo(name="")]
+    )
+
+    response = APIClient().get(
+        reverse("rooms-participants-count", kwargs={"pk": room.id})
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == {"count": 2, "names": ["Zora"]}
 
 
 def test_participants_count_anonymous_trusted_room(mock_livekit_client):
@@ -84,7 +101,7 @@ def test_participants_count_anonymous_trusted_room(mock_livekit_client):
     )
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
-    mock_livekit_client.room.list_rooms.assert_not_called()
+    mock_livekit_client.room.list_participants.assert_not_called()
 
 
 def test_participants_count_authenticated_trusted_room(mock_livekit_client):
@@ -96,7 +113,7 @@ def test_participants_count_authenticated_trusted_room(mock_livekit_client):
     response = client.get(reverse("rooms-participants-count", kwargs={"pk": room.id}))
 
     assert response.status_code == status.HTTP_200_OK
-    assert response.json() == {"count": 2}
+    assert response.json() == {"count": 2, "names": ["Zora", "Neel"]}
 
 
 def test_participants_count_restricted_room_without_access(mock_livekit_client):
@@ -108,7 +125,7 @@ def test_participants_count_restricted_room_without_access(mock_livekit_client):
     response = client.get(reverse("rooms-participants-count", kwargs={"pk": room.id}))
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
-    mock_livekit_client.room.list_rooms.assert_not_called()
+    mock_livekit_client.room.list_participants.assert_not_called()
 
 
 def test_participants_count_restricted_room_with_access(mock_livekit_client):
@@ -126,7 +143,7 @@ def test_participants_count_restricted_room_with_access(mock_livekit_client):
     response = client.get(reverse("rooms-participants-count", kwargs={"pk": room.id}))
 
     assert response.status_code == status.HTTP_200_OK
-    assert response.json() == {"count": 2}
+    assert response.json() == {"count": 2, "names": ["Zora", "Neel"]}
 
 
 @override_settings(ALLOW_UNREGISTERED_ROOMS=True)
@@ -137,10 +154,10 @@ def test_participants_count_unregistered_room(mock_livekit_client):
     )
 
     assert response.status_code == status.HTTP_200_OK
-    assert response.json() == {"count": 2}
+    assert response.json() == {"count": 2, "names": ["Zora", "Neel"]}
 
-    request = mock_livekit_client.room.list_rooms.call_args.args[0]
-    assert list(request.names) == ["tst-room-dev"]
+    request = mock_livekit_client.room.list_participants.call_args.args[0]
+    assert request.room == "tst-room-dev"
 
 
 @override_settings(ALLOW_UNREGISTERED_ROOMS=False)
@@ -151,13 +168,13 @@ def test_participants_count_unregistered_room_disabled(mock_livekit_client):
     )
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
-    mock_livekit_client.room.list_rooms.assert_not_called()
+    mock_livekit_client.room.list_participants.assert_not_called()
 
 
 def test_participants_count_livekit_unreachable(mock_livekit_client):
     """A media server that cannot answer gives 503, never a 500."""
     room = RoomFactory(access_level=RoomAccessLevel.PUBLIC)
-    mock_livekit_client.room.list_rooms.side_effect = TwirpError(
+    mock_livekit_client.room.list_participants.side_effect = TwirpError(
         "internal", "boom", status=500
     )
 

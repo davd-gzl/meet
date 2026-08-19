@@ -65,7 +65,9 @@
     "participants": {
       "empty": "Personne n'a encore rejoint",
       "count_one": "{{count}} personne est déjà là",
-      "count_other": "{{count}} personnes sont déjà là"
+      "count_other": "{{count}} personnes sont déjà là",
+      "more_one": "{{count}} autre",
+      "more_other": "{{count}} autres"
     },
     "errors": {
       "usernameEmpty": "Votre nom ne peut pas être vide"

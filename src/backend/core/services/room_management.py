@@ -10,14 +10,29 @@ import aiohttp
 from asgiref.sync import async_to_sync
 from livekit.api import (
     DeleteRoomRequest,
+    ListParticipantsRequest,
     ListRoomsRequest,
     TwirpError,
     UpdateRoomMetadataRequest,
 )
+from livekit.protocol.models import ParticipantInfo
 
 from core import utils
 
 logger = getLogger(__name__)
+
+
+# The kinds LiveKit itself leaves out of a room's participant count.
+MACHINE_KINDS = frozenset({ParticipantInfo.Kind.AGENT, ParticipantInfo.Kind.EGRESS})
+
+
+def _is_machine(participant: ParticipantInfo) -> bool:
+    """Check whether a participant is a recorder, an agent, or a person."""
+    return (
+        participant.kind in MACHINE_KINDS
+        or participant.permission.agent
+        or participant.permission.recorder
+    )
 
 
 class RoomManagementException(Exception):
@@ -92,39 +107,45 @@ class RoomManagement:
             await lkapi.aclose()
 
     @async_to_sync
-    async def get_participants_count(self, room_name: str) -> int:
-        """Count the people currently in a LiveKit room.
+    async def get_participants(self, room_name: str) -> list[str]:
+        """Name each person currently in a LiveKit room.
 
-        LiveKit creates a room when its first participant joins, so a name it
-        does not know has nobody in it. Its count leaves out agents and
-        recorders, which is what makes it the number to show a human.
+        Someone who gave no display name is in the list as an empty string, so a
+        caller counts them without naming them. Agents and recorders are left
+        out, which is the rule LiveKit applies to the count it reports for a
+        room itself.
 
         Raises:
-            RoomManagementException: the count could not be read.
+            RoomManagementException: the room could not be read.
         """
 
         lkapi = utils.create_livekit_client()
 
         try:
-            response = await lkapi.room.list_rooms(ListRoomsRequest(names=[room_name]))
+            response = await lkapi.room.list_participants(
+                ListParticipantsRequest(room=room_name)
+            )
 
         # A LiveKit outage would otherwise surface as a 500 on every poll of the
         # join screen, so the connection error is turned into the same failure
         # as a refusal.
         except (TwirpError, aiohttp.ClientError) as e:
-            logger.exception(
-                "Unexpected error counting participants in room %s",
-                room_name,
-            )
-            raise RoomManagementException("Could not count participants") from e
+            if isinstance(e, TwirpError) and e.code == "not_found":
+                # LiveKit creates a room when its first participant joins, so a
+                # name it does not know has nobody in it.
+                return []
+
+            logger.exception("Unexpected error listing participants of %s", room_name)
+            raise RoomManagementException("Could not list participants") from e
 
         finally:
             await lkapi.aclose()
 
-        if not response.rooms:
-            return 0
-
-        return response.rooms[0].num_participants
+        return [
+            participant.name
+            for participant in response.participants
+            if not _is_machine(participant)
+        ]
 
     @async_to_sync
     async def delete_room(self, room_name: str):
