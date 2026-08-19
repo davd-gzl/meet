@@ -162,15 +162,20 @@ def test_participants_unregistered_room_disabled(mock_livekit_client):
 
 
 def test_participants_livekit_unreachable(mock_livekit_client):
-    """A media server that cannot answer gives 503, never a 500."""
+    """A media server that cannot answer gives 503, never a 500, and is not
+    asked again by everyone else waiting on the same meeting."""
     room = RoomFactory(access_level=RoomAccessLevel.PUBLIC)
     mock_livekit_client.room.list_rooms.side_effect = TwirpError(
         "internal", "boom", status=500
     )
+    url = reverse("rooms-participants", kwargs={"pk": room.id})
 
-    response = APIClient().get(reverse("rooms-participants", kwargs={"pk": room.id}))
+    first = APIClient().get(url)
+    second = APIClient().get(url)
 
-    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    assert first.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    assert second.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    assert mock_livekit_client.room.list_rooms.call_count == 1
 
 
 def test_participants_anonymous_request_is_counted_once():

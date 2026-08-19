@@ -430,22 +430,28 @@ class RoomViewSet(
         # same question at once. Holding the answer for less than one poll turns
         # them into a single call to LiveKit however many they are.
         cache_key = f"room_participants_{livekit_room:s}"
-        participants = cache.get(cache_key)
+        answer = cache.get(cache_key)
 
-        if participants is None:
+        if answer is None:
             try:
-                participants = {
-                    "count": RoomManagement().get_participants_count(livekit_room)
-                }
+                answer = (
+                    {"count": RoomManagement().get_participants_count(livekit_room)},
+                    drf_status.HTTP_200_OK,
+                )
             except RoomManagementException:
-                return drf_response.Response(
+                # The failure is held as well as the answer. A LiveKit that
+                # cannot be reached is exactly when it can least afford one call
+                # per browser waiting on it.
+                answer = (
                     {"error": "Could not reach the meeting."},
-                    status=drf_status.HTTP_503_SERVICE_UNAVAILABLE,
+                    drf_status.HTTP_503_SERVICE_UNAVAILABLE,
                 )
 
-            cache.set(cache_key, participants, settings.ROOM_PARTICIPANTS_CACHE_SECONDS)
+            cache.set(cache_key, answer, settings.ROOM_PARTICIPANTS_CACHE_SECONDS)
 
-        return drf_response.Response(participants)
+        body, status_code = answer
+
+        return drf_response.Response(body, status=status_code)
 
     @decorators.action(
         detail=True,

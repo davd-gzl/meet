@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { keys } from '@/api/queryKeys'
+import { ApiError } from '@/api/ApiError'
 import { fetchParticipantsCount } from '../api/fetchParticipantsCount'
 
 export const POLL_INTERVAL_MS = 5000
@@ -17,9 +18,14 @@ export const useJoinParticipantsCount = (roomId: string) => {
   const { data } = useQuery({
     queryKey: [keys.participants, roomId],
     queryFn: () => fetchParticipantsCount({ roomId }),
-    // A room that refuses once refuses for as long as this screen is open, so
-    // the poll stops rather than asking every five seconds for nothing.
-    refetchInterval: (query) => (query.state.error ? false : POLL_INTERVAL_MS),
+    refetchInterval: (query) => {
+      const error = query.state.error
+      // A room that will not report never starts, so asking again is waste. A
+      // media server that cannot be reached does come back, and the API holds
+      // its own failure, so asking again costs it nothing.
+      const refused = error instanceof ApiError && error.statusCode < 500
+      return refused ? false : POLL_INTERVAL_MS
+    },
     // Coming back to the tab is worth a refresh, and without this every one of
     // them fires a fetch on top of the interval.
     staleTime: POLL_INTERVAL_MS,
