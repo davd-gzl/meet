@@ -90,6 +90,40 @@ def test_api_rooms_create_access_level_not_allowed(reset_cache, settings):
     assert not Room.objects.exists()
 
 
+def test_api_rooms_create_access_level_allowed(reset_cache, settings):
+    """Creating a room with an allowed access level should succeed."""
+    settings.RESOURCE_ALLOWED_ACCESS_LEVELS = [
+        RoomAccessLevel.TRUSTED,
+        RoomAccessLevel.RESTRICTED,
+    ]
+    client = APIClient()
+    client.force_login(UserFactory())
+
+    response = client.post(
+        "/api/v1.0/rooms/",
+        {
+            "name": "my room",
+            "access_level": RoomAccessLevel.TRUSTED,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert Room.objects.get().access_level == RoomAccessLevel.TRUSTED
+
+
+def test_api_rooms_create_without_access_level_uses_the_default(reset_cache):
+    """A create that omits the access level takes RESOURCE_DEFAULT_ACCESS_LEVEL,
+    which the boot guard keeps inside the allow-list."""
+    client = APIClient()
+    client.force_login(UserFactory())
+
+    response = client.post("/api/v1.0/rooms/", {"name": "my room"}, format="json")
+
+    assert response.status_code == 201
+    assert Room.objects.get().access_level == settings.RESOURCE_DEFAULT_ACCESS_LEVEL
+
+
 def test_api_rooms_create_generation_cache(reset_cache):
     """
     Authenticated users creating a room with a callback ID should have room data stored in cache.

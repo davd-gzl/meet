@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(backend) restrict settable room access levels
+- ✨(frontend) hide disallowed access levels in room settings
+- ✨(backend) apply the room access allow-list to the external API
+
 ### Changed
 
 - ✨(backend) accept form-urlencoded on the user token endpoint

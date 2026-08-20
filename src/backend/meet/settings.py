@@ -33,6 +33,34 @@ KB = 1024
 MB = 1024 * KB
 GB = 1024 * MB
 
+# Mirrors core.models.RoomAccessLevel, which cannot be imported here because
+# settings are read before the app registry is loaded. A test asserts the two
+# stay equal.
+ROOM_ACCESS_LEVELS = ["public", "trusted", "restricted"]
+
+
+def validate_access_level_settings(allowed_levels, default_level, external_default):
+    """Check the room access level settings against each other."""
+    unknown_levels = [
+        level for level in allowed_levels if level not in ROOM_ACCESS_LEVELS
+    ]
+    if unknown_levels:
+        raise ValueError(
+            "RESOURCE_ALLOWED_ACCESS_LEVELS holds unknown access levels: "
+            f"{', '.join(unknown_levels)}"
+        )
+
+    if default_level not in allowed_levels:
+        raise ValueError(
+            "RESOURCE_DEFAULT_ACCESS_LEVEL must be one of RESOURCE_ALLOWED_ACCESS_LEVELS"
+        )
+
+    if external_default not in allowed_levels:
+        raise ValueError(
+            "EXTERNAL_API_DEFAULT_ACCESS_LEVEL must be one of "
+            "RESOURCE_ALLOWED_ACCESS_LEVELS"
+        )
+
 
 def get_release():
     """
@@ -700,7 +728,7 @@ class Base(Configuration):
         "public", environ_name="RESOURCE_DEFAULT_ACCESS_LEVEL", environ_prefix=None
     )
     RESOURCE_ALLOWED_ACCESS_LEVELS = values.ListValue(
-        ["public", "trusted", "restricted"],
+        ROOM_ACCESS_LEVELS,
         environ_name="RESOURCE_ALLOWED_ACCESS_LEVELS",
         environ_prefix=None,
     )
@@ -1205,10 +1233,11 @@ class Base(Configuration):
                 stacklevel=2,
             )
 
-        if cls.RESOURCE_DEFAULT_ACCESS_LEVEL not in cls.RESOURCE_ALLOWED_ACCESS_LEVELS:
-            raise ValueError(
-                "RESOURCE_DEFAULT_ACCESS_LEVEL must be one of RESOURCE_ALLOWED_ACCESS_LEVELS"
-            )
+        validate_access_level_settings(
+            cls.RESOURCE_ALLOWED_ACCESS_LEVELS,
+            cls.RESOURCE_DEFAULT_ACCESS_LEVEL,
+            cls.EXTERNAL_API_DEFAULT_ACCESS_LEVEL,
+        )
 
         # The SENTRY_DSN setting should be available to activate sentry for an environment
         if cls.SENTRY_DSN is not None:

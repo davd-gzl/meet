@@ -8,7 +8,11 @@ from pydantic import ValidationError
 from rest_framework import serializers
 
 from core import models, utils
-from core.api.serializers import BaseValidationOnlySerializer, RoomConfiguration
+from core.api.serializers import (
+    BaseValidationOnlySerializer,
+    RoomConfiguration,
+    validate_allowed_access_level,
+)
 
 OAUTH2_GRANT_TYPE_CLIENT_CREDENTIALS = "client_credentials"
 
@@ -54,6 +58,8 @@ class RoomSerializer(serializers.ModelSerializer):
 
     def validate_access_level(self, access_level):
         """Reject public access_level unless explicitly allowed or the default is already public."""
+
+        validate_allowed_access_level(access_level)
 
         if settings.EXTERNAL_API_DEFAULT_ACCESS_LEVEL == models.RoomAccessLevel.PUBLIC:
             return access_level

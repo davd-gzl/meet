@@ -24,6 +24,15 @@ from core import models, utils
 logger = logging.getLogger(__name__)
 
 
+def validate_allowed_access_level(access_level):
+    """Reject an access level the instance does not allow."""
+    if access_level not in settings.RESOURCE_ALLOWED_ACCESS_LEVELS:
+        raise serializers.ValidationError(
+            _("This access level is not allowed on this instance.")
+        )
+    return access_level
+
+
 class UserSerializer(serializers.ModelSerializer):
     """Serialize users."""
 
@@ -163,11 +172,7 @@ class RoomSerializer(serializers.ModelSerializer):
 
     def validate_access_level(self, access_level):
         """Validate the access level against the instance allow-list."""
-        if access_level not in settings.RESOURCE_ALLOWED_ACCESS_LEVELS:
-            raise serializers.ValidationError(
-                "This access level is not allowed on this instance."
-            )
-        return access_level
+        return validate_allowed_access_level(access_level)
 
     def to_representation(self, instance):
         """
