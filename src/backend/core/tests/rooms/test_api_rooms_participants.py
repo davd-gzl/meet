@@ -28,11 +28,21 @@ INSIDE = {"count": 2}
 
 
 @pytest.fixture(autouse=True)
-def clear_cache():
-    """Keep one test's view of a meeting out of the next one."""
+def local_cache(settings):
+    """Give these tests a cache of their own.
+
+    The suite runs under xdist and the session backend lives in the shared
+    cache, so clearing that one logs out whatever is running in the other
+    worker. This one is in this process and nobody else's.
+    """
+    settings.CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "test_api_rooms_participants",
+        }
+    }
     cache.clear()
     yield
-    cache.clear()
 
 
 @pytest.fixture
