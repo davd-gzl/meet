@@ -586,6 +586,7 @@
       "title": "Room access",
       "description": "These settings will also apply to future occurrences of this meeting.",
       "type": "Meeting access types",
+      "refused": "This access type is not allowed on this instance, and the meeting is unchanged.",
       "levels": {
         "public": {
           "label": "Open",

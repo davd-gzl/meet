@@ -586,6 +586,7 @@
       "title": "Accès à la réunion",
       "description": "Ces paramètres s'appliqueront également aux futures occurrences de cette réunion.",
       "type": "Type d'accès à la réunion",
+      "refused": "Ce type d'accès n'est pas autorisé sur cette instance, la réunion est inchangée.",
       "levels": {
         "public": {
           "label": "Ouvrir",

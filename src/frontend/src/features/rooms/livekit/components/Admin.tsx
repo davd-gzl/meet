@@ -5,13 +5,14 @@ import { useTranslation } from 'react-i18next'
 import { usePatchRoom } from '@/features/rooms/api/patchRoom'
 import { fetchRoom } from '@/features/rooms/api/fetchRoom'
 import { ApiAccessLevel } from '@/features/rooms/api/ApiRoom'
+import { ApiError } from '@/api/ApiError'
 import { keys } from '@/api/queryKeys'
 import { useConfig } from '@/api/useConfig'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'wouter'
 import { usePublishSourcesManager } from '../hooks/usePublishSourcesManager'
 import { usePermissionsManager } from '../hooks/usePermissionsManager'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { closeSidePanel } from '@/stores/layout'
 import { useIsAdminOrOwner } from '../hooks/useIsAdminOrOwner'
 import { reportError } from '@/features/analytics/telemetry'
@@ -26,6 +27,10 @@ export const Admin = () => {
   }
 
   const { mutateAsync: patchRoom } = usePatchRoom()
+
+  const queryClient = useQueryClient()
+
+  const [accessLevelRefused, setAccessLevelRefused] = useState(false)
 
   const isAdminOrOwner = useIsAdminOrOwner()
 
@@ -232,14 +237,36 @@ export const Admin = () => {
             }),
           }}
           value={readOnlyData?.access_level}
-          onChange={(value) =>
+          onChange={(value) => {
+            setAccessLevelRefused(false)
             patchRoom({
               roomId,
               room: { access_level: value as ApiAccessLevel },
-            }).catch((e) => reportError('generic_failure', e))
-          }
+            }).catch((e) => {
+              // The allowed levels are read once per page load, so this tab can
+              // offer a level the instance has stopped allowing since.
+              if (e instanceof ApiError && e.statusCode === 400) {
+                setAccessLevelRefused(true)
+                queryClient.invalidateQueries({ queryKey: [keys.config] })
+              }
+              reportError('generic_failure', e)
+            })
+          }}
           items={visibleAccessLevelItems}
         />
+        {accessLevelRefused && (
+          <Text
+            role="alert"
+            variant="warning"
+            wrap="pretty"
+            className={css({
+              textStyle: 'sm',
+            })}
+            margin={'md'}
+          >
+            {t('access.refused')}
+          </Text>
+        )}
       </div>
     </Div>
   )

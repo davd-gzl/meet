@@ -13,6 +13,7 @@ and this project adheres to
 - ✨(backend) restrict settable room access levels
 - ✨(frontend) hide disallowed access levels in room settings
 - ✨(backend) apply the room access allow-list to the external API
+- 🚸(frontend) tell the host when an access level is refused
 
 ### Changed
 

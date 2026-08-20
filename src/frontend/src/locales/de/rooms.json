@@ -586,6 +586,7 @@
       "title": "Raumzugang",
       "description": "Diese Einstellungen gelten auch für zukünftige Meetings in diesem Raum.",
       "type": "Zugangsarten für Meetings",
+      "refused": "Diese Zugriffsart ist auf dieser Instanz nicht erlaubt, das Meeting bleibt unverändert.",
       "levels": {
         "public": {
           "label": "Offen",
