@@ -2,6 +2,7 @@
 
 # pylint: disable=no-name-in-module
 
+import asyncio
 import json
 from logging import getLogger
 from typing import Dict, Optional
@@ -105,25 +106,27 @@ class RoomManagement:
             RoomManagementException: the count could not be read.
         """
 
-        # The join screen reaches this without anyone clicking anything, and the
-        # workers are three, so a LiveKit that has stopped answering must not
-        # hold one for the minute the client would wait by default.
-        lkapi = utils.create_livekit_client(
-            timeout=aiohttp.ClientTimeout(
-                total=settings.ROOM_PARTICIPANTS_TIMEOUT_SECONDS
-            )
-        )
+        lkapi = utils.create_livekit_client()
 
         try:
-            response = await lkapi.room.list_rooms(ListRoomsRequest(names=[room_name]))
+            # The join screen reaches this without anyone clicking anything, and
+            # the deployment runs three synchronous workers, so a LiveKit that
+            # accepts the connection and then says nothing must not hold one.
+            # The clock has to be here: the SDK passes timeout=None to aiohttp
+            # on every call, which overrides whatever the session was given and
+            # leaves the request with no timeout at all.
+            async with asyncio.timeout(settings.ROOM_PARTICIPANTS_TIMEOUT_SECONDS):
+                response = await lkapi.room.list_rooms(
+                    ListRoomsRequest(names=[room_name])
+                )
 
         except TwirpError as e:
             logger.exception("Unexpected error counting participants in %s", room_name)
             raise RoomManagementException("Could not count participants") from e
 
         # An unreachable LiveKit would otherwise surface as a 500 on every poll
-        # of the join screen, so it fails the same way as a refusal. A total
-        # timeout raises TimeoutError, which is no kind of ClientError.
+        # of the join screen, so it fails the same way as a refusal. Giving up
+        # raises TimeoutError, which is no kind of ClientError.
         except (aiohttp.ClientError, TimeoutError) as e:
             logger.exception(
                 "Could not reach LiveKit counting participants of %s", room_name

@@ -218,27 +218,19 @@ def generate_s3_authorization_headers(key):
     return request
 
 
-def create_livekit_client(custom_configuration=None, timeout=None):
-    """Create and return a configured LiveKit API client.
-
-    `timeout` bounds the whole call. Left unset, the client waits 60 seconds,
-    which is a long time to hold one of three gunicorn workers.
-    """
+def create_livekit_client(custom_configuration=None):
+    """Create and return a configured LiveKit API client."""
 
     custom_session = None
 
     if not settings.LIVEKIT_VERIFY_SSL:
         connector = aiohttp.TCPConnector(ssl=False)
-        # The client applies a timeout only to a session it builds itself, so a
-        # session handed to it has to carry its own.
-        session_options = {"timeout": timeout} if timeout else {}
-        custom_session = aiohttp.ClientSession(connector=connector, **session_options)
+        custom_session = aiohttp.ClientSession(connector=connector)
 
     # Use default configuration if none provided
     configuration = custom_configuration or settings.LIVEKIT_CONFIGURATION
-    client_options = {"timeout": timeout} if timeout else {}
 
-    return LiveKitAPI(session=custom_session, **client_options, **configuration)
+    return LiveKitAPI(session=custom_session, **configuration)
 
 
 class NotificationError(Exception):

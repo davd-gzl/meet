@@ -1,8 +1,10 @@
 """Tests for the RoomManagement service."""
 
+import asyncio
+import time
 from unittest import mock
 
-from django.conf import settings
+from django.test.utils import override_settings
 
 import aiohttp
 import pytest
@@ -133,12 +135,28 @@ def test_get_participants_count_raises_management_exception(
     mock_api.aclose.assert_awaited_once()
 
 
+@override_settings(ROOM_PARTICIPANTS_TIMEOUT_SECONDS=1)
 @mock.patch("core.services.room_management.utils.create_livekit_client")
-def test_get_participants_count_bounds_how_long_it_waits(mock_create_livekit_client):
-    """The join screen must not hold a worker for the client's own minute."""
-    livekit_client(mock_create_livekit_client, list_rooms=ListRoomsResponse(rooms=[]))
+def test_get_participants_count_gives_up_on_a_silent_livekit(
+    mock_create_livekit_client,
+):
+    """A LiveKit that takes the connection and never answers is not waited on.
 
-    RoomManagement().get_participants_count("room-abc")
+    Timing it rather than asserting a keyword, because the SDK cannot be given a
+    timeout at all: it passes timeout=None to aiohttp for every call, which
+    overrides the session's own and leaves the request unbounded.
+    """
 
-    timeout = mock_create_livekit_client.call_args.kwargs["timeout"]
-    assert timeout.total == settings.ROOM_PARTICIPANTS_TIMEOUT_SECONDS
+    async def never_answers(*args, **kwargs):
+        await asyncio.sleep(30)
+
+    mock_api = livekit_client(mock_create_livekit_client, list_rooms=None)
+    mock_api.room.list_rooms = mock.AsyncMock(side_effect=never_answers)
+    service = RoomManagement()
+
+    started = time.monotonic()
+    with pytest.raises(RoomManagementException):
+        service.get_participants_count("room-abc")
+
+    assert time.monotonic() - started < 10
+    mock_api.aclose.assert_awaited_once()
