@@ -42,7 +42,6 @@ def local_cache(settings):
         }
     }
     cache.clear()
-    yield
 
 
 @pytest.fixture
