@@ -2,10 +2,14 @@
 
 # pylint: disable=no-name-in-module
 
+import asyncio
 import json
 from logging import getLogger
 from typing import Dict, Optional
 
+from django.conf import settings
+
+import aiohttp
 from asgiref.sync import async_to_sync
 from livekit.api import (
     DeleteRoomRequest,
@@ -89,6 +93,53 @@ class RoomManagement:
 
         finally:
             await lkapi.aclose()
+
+    @async_to_sync
+    async def get_participants_count(self, room_name: str) -> int:
+        """Count the people currently in a LiveKit room.
+
+        LiveKit creates a room when its first participant joins, so a name it
+        does not know has nobody in it. Its count leaves out agents and
+        recorders, which is what makes it the number to show a human.
+
+        Raises:
+            RoomManagementException: the count could not be read.
+        """
+
+        lkapi = utils.create_livekit_client()
+
+        try:
+            # The join screen reaches this without anyone clicking anything, and
+            # the deployment runs three synchronous workers, so a LiveKit that
+            # accepts the connection and then says nothing must not hold one.
+            # The clock has to be here: the SDK passes timeout=None to aiohttp
+            # on every call, which overrides whatever the session was given and
+            # leaves the request with no timeout at all.
+            async with asyncio.timeout(settings.ROOM_PARTICIPANTS_TIMEOUT_SECONDS):
+                response = await lkapi.room.list_rooms(
+                    ListRoomsRequest(names=[room_name])
+                )
+
+        except TwirpError as e:
+            logger.exception("Unexpected error counting participants in %s", room_name)
+            raise RoomManagementException("Could not count participants") from e
+
+        # An unreachable LiveKit would otherwise surface as a 500 on every poll
+        # of the join screen, so it fails the same way as a refusal. Giving up
+        # raises TimeoutError, which is no kind of ClientError.
+        except (aiohttp.ClientError, TimeoutError) as e:
+            logger.exception(
+                "Could not reach LiveKit counting participants of %s", room_name
+            )
+            raise RoomManagementException("Could not count participants") from e
+
+        finally:
+            await lkapi.aclose()
+
+        if not response.rooms:
+            return 0
+
+        return response.rooms[0].num_participants
 
     @async_to_sync
     async def delete_room(self, room_name: str):
