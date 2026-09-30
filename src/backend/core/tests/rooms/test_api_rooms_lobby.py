@@ -395,6 +395,8 @@ def test_request_entry_room_not_found():
 
 # Tests for allow_participant_to_enter endpoint
 
+GUEST_ID = "guest_" + "a" * 40
+
 
 def test_allow_participant_to_enter_anonymous():
     """Anonymous users should not be allowed to manage entry requests."""
@@ -403,7 +405,7 @@ def test_allow_participant_to_enter_anonymous():
 
     response = client.post(
         f"/api/v1.0/rooms/{room.id}/enter/",
-        {"participant_id": "2f7f162f-e7d1-421b-90e7-02bfbfbf8def", "allow_entry": True},
+        {"participant_id": GUEST_ID, "allow_entry": True},
     )
 
     assert response.status_code == 401
@@ -418,7 +420,7 @@ def test_allow_participant_to_enter_non_owner():
 
     response = client.post(
         f"/api/v1.0/rooms/{room.id}/enter/",
-        {"participant_id": "2f7f162f-e7d1-421b-90e7-02bfbfbf8def", "allow_entry": True},
+        {"participant_id": GUEST_ID, "allow_entry": True},
     )
 
     assert response.status_code == 403
@@ -436,7 +438,7 @@ def test_allow_participant_to_enter_public_room():
 
     response = client.post(
         f"/api/v1.0/rooms/{room.id}/enter/",
-        {"participant_id": "2f7f162f-e7d1-421b-90e7-02bfbfbf8def", "allow_entry": True},
+        {"participant_id": GUEST_ID, "allow_entry": True},
     )
 
     assert response.status_code == 404
@@ -459,9 +461,9 @@ def test_allow_participant_to_enter_success(settings, allow_entry, updated_statu
     settings.LOBBY_KEY_PREFIX = "mocked-cache-prefix"
 
     cache.set(
-        f"mocked-cache-prefix_{room.id!s}_2f7f162f-e7d1-421b-90e7-02bfbfbf8def",
+        f"mocked-cache-prefix_{room.id!s}_{GUEST_ID}",
         {
-            "id": "2f7f162f-e7d1-421b-90e7-02bfbfbf8def",
+            "id": GUEST_ID,
             "status": "waiting",
             "username": "foo",
             "color": "123",
@@ -472,7 +474,7 @@ def test_allow_participant_to_enter_success(settings, allow_entry, updated_statu
     response = client.post(
         f"/api/v1.0/rooms/{room.id}/enter/",
         {
-            "participant_id": "2f7f162f-e7d1-421b-90e7-02bfbfbf8def",
+            "participant_id": GUEST_ID,
             "allow_entry": allow_entry,
         },
     )
@@ -480,9 +482,7 @@ def test_allow_participant_to_enter_success(settings, allow_entry, updated_statu
     assert response.status_code == 200
     assert response.json() == {"message": "Participant was updated."}
 
-    participant_data = cache.get(
-        f"mocked-cache-prefix_{room.id!s}_2f7f162f-e7d1-421b-90e7-02bfbfbf8def"
-    )
+    participant_data = cache.get(f"mocked-cache-prefix_{room.id!s}_{GUEST_ID}")
     assert participant_data.get("status") == updated_status
 
 
@@ -498,14 +498,12 @@ def test_allow_participant_to_enter_participant_not_found(settings):
 
     settings.LOBBY_KEY_PREFIX = "mocked-cache-prefix"
 
-    participant_data = cache.get(
-        f"mocked-cache-prefix_{room.id!s}_2f7f162f-e7d1-421b-90e7-02bfbfbf8def"
-    )
+    participant_data = cache.get(f"mocked-cache-prefix_{room.id!s}_{GUEST_ID}")
     assert participant_data is None
 
     response = client.post(
         f"/api/v1.0/rooms/{room.id}/enter/",
-        {"participant_id": "2f7f162f-e7d1-421b-90e7-02bfbfbf8def", "allow_entry": True},
+        {"participant_id": GUEST_ID, "allow_entry": True},
     )
 
     assert response.status_code == 404
@@ -584,6 +582,7 @@ def test_lobby_decision_accepts_returned_guest_identity(authenticated, allow_ent
         "guest_" + "G" * 40,
         " guest_" + "a" * 40,
         "guest_" + "a" * 40 + "\n",
+        "2f7f162f-e7d1-421b-90e7-02bfbfbf8def",
     ],
 )
 def test_lobby_decision_rejects_malformed_guest_identity(participant_id):
