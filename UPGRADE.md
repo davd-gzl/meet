@@ -54,6 +54,13 @@ Also:
 
 The `meet` chart now defaults `serviceMedia.host` and `serviceMediaFiles.host` to `garage.meet.svc.cluster.local`, and the `upstream-vhost` annotation of `ingressMedia` and `ingressMediaFiles` to `garage.meet.svc.cluster.local:9000`. If you relied on the former `minio.meet.svc.cluster.local` defaults, set these values explicitly to your S3 service before upgrading, or recordings and files stop being served under `/media`.
 
+### Guest cookie signed and renamed
+
+The cookie that identifies a guest who is not signed in now holds a signed value, and its default name moves from `lobbyParticipantId` to `lobbyGuest`, so a pod still on the previous release never reads it.
+
+- If you set `LOBBY_COOKIE_NAME`, give it a new value for this release. A pod on the previous release that reads the new cookie lists the signed value as the guest's id, and admitting that guest fails.
+- Guests waiting in a lobby during the upgrade queue again.
+
 ## v1.30.0
 
 ### Removing S3 storage-event webhooks for recordings
