@@ -1,5 +1,6 @@
 """Lobby Service"""
 
+import hashlib
 import logging
 import secrets
 from dataclasses import dataclass
@@ -11,7 +12,6 @@ from django.conf import settings
 from django.core import signing
 from django.core.cache import cache
 from django.utils import timezone
-from django.utils.crypto import salted_hmac
 
 from core import models, utils
 
@@ -174,10 +174,11 @@ class LobbyService:
             if capability is None:
                 capability = secrets.token_urlsafe(32)
             setattr(request, cls._REQUEST_CAPABILITY_ATTRIBUTE, capability)
-        digest = salted_hmac(
-            cls.GUEST_IDENTITY_SALT, f"{room_id}:{capability}"
+        # Derived from the capability alone, so a key rotation keeps identities.
+        digest = hashlib.sha256(
+            f"{cls.GUEST_IDENTITY_SALT}:{room_id}:{capability}".encode()
         ).hexdigest()
-        return f"guest_{digest}"
+        return f"guest_{digest[:40]}"
 
     @classmethod
     def prepare_response(cls, response, request) -> None:

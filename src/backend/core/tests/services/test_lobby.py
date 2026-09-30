@@ -13,6 +13,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.core import signing
 from django.core.cache import cache
 from django.http import HttpRequest, HttpResponse
+from django.test import override_settings
 
 import pytest
 from freezegun import freeze_time
@@ -227,6 +228,22 @@ def test_get_or_create_participant_id_differs_per_room(lobby_service):
     ) != lobby_service.get_or_create_participant_id(
         guest_request(cookie), second_room.id
     )
+
+
+def test_get_or_create_participant_id_survives_secret_key_rotation(lobby_service):
+    """A key rotation that keeps the old key as a fallback keeps every identity."""
+    room = RoomFactory()
+    cookie = LobbyService.sign_guest_capability("capability")
+    before = lobby_service.get_or_create_participant_id(guest_request(cookie), room.id)
+
+    with override_settings(
+        SECRET_KEY="another-secret-key", SECRET_KEY_FALLBACKS=[settings.SECRET_KEY]
+    ):
+        after = lobby_service.get_or_create_participant_id(
+            guest_request(cookie), room.id
+        )
+
+    assert after == before
 
 
 def test_prepare_response_without_guest(lobby_service):
