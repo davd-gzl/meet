@@ -1,10 +1,10 @@
 # Breakout rooms
 
-A host can split a meeting into 2 to 10 smaller meetings, move everyone into the one they were assigned, and later bring everyone back.
+A host can split a meeting into 2 to 20 smaller meetings, move everyone into the one they were assigned, and later bring everyone back.
 
 ## What a host does
 
-1. In the meeting, the owner or an administrator opens the breakout panel, picks a number of rooms and assigns each participant to one of them, by hand or with a shuffle. The panel offers only the browsers that can follow a move: not the hosts, phone callers or agents, nor a tab loaded before breakout rooms were deployed.
+1. In the meeting, the owner or an administrator opens the breakout panel, picks a number of rooms, then how to split people: automatically, spread evenly; manually, each person placed by pressing a room number beside their name; or as in the last split opened in this meeting, for everyone still there. The count starts at the last one opened, or one room per 4 people. The manual plan, the last plan opened and its count are kept in the tab's session storage for that meeting. The panel offers only the browsers that can follow a move: not the hosts, phone callers or agents, nor a tab loaded before breakout rooms were deployed.
 2. Open creates the rooms. Every assigned participant still in the meeting is moved to their room. Someone who joins the meeting later has no assignment and stays in it.
 3. Close deletes the rooms, and everyone in them is sent back to the meeting they started in.
 

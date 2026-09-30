@@ -177,18 +177,31 @@ def test_api_breakout_sessions_create_not_manager(livekit, role):
     "rooms",
     [
         [["alice"]],
-        [[f"p{index}"] for index in range(11)],
+        [[f"p{index}"] for index in range(21)],
         [["alice"], ["alice"]],
     ],
 )
 def test_api_breakout_sessions_create_invalid(livekit, owner_room, rooms):
-    """Two to ten rooms, and one room per participant."""
+    """Two to twenty rooms, and one room per participant."""
     room, client = owner_room
 
     response = client.post(url(room), payload(*rooms), "json")
 
     assert response.status_code == 400
     livekit.room.create_room.assert_not_awaited()
+
+
+def test_api_breakout_sessions_create_twenty_rooms(livekit, owner_room):
+    """Twenty rooms, the most a split takes, are all opened."""
+    room, client = owner_room
+
+    response = client.post(
+        url(room), payload(*([f"p{index}"] for index in range(20))), "json"
+    )
+
+    assert response.status_code == 201
+    assert models.BreakoutRoom.objects.count() == 20
+    assert livekit.room.create_room.await_count == 20
 
 
 def test_api_breakout_sessions_create_long_name(livekit, owner_room):

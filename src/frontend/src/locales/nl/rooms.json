@@ -836,14 +836,34 @@
     "error": "De actie is mislukt. Probeer het opnieuw.",
     "setup": {
       "roomCount": "Aantal ruimtes",
-      "unassignedOption": "Niet toegewezen",
+      "howToSplit": "Hoe mensen verdelen",
+      "auto": {
+        "title": "Automatisch",
+        "description": "Iedereen wordt gelijk verdeeld. Je kunt het daarna aanpassen.",
+        "summary": "Automatisch verdeeld · {{count}} ruimtes"
+      },
+      "manual": {
+        "title": "Handmatig",
+        "description": "Jij kiest wie waarheen gaat. Gaat verder waar je gebleven was.",
+        "summary": "Handmatig verdeeld · {{count}} ruimtes"
+      },
+      "last": {
+        "title": "Zoals de vorige keer",
+        "description": "Wie er nog is, gaat terug naar zijn ruimte.",
+        "summary": "Zoals de vorige keer · {{count}} ruimtes"
+      },
+      "back": "Hoe verdelen",
       "nobody": "Nog niemand om toe te wijzen",
-      "unassigned_one": "{{count}} persoon niet toegewezen",
-      "unassigned_other": "{{count}} personen niet toegewezen",
-      "allAssigned": "Iedereen is toegewezen",
-      "shuffle": "Willekeurig toewijzen",
-      "assign": "Ruimte voor {{name}}",
-      "open": "Ruimtes openen"
+      "placeIn": "Ruimte {{number}} voor {{name}}",
+      "preview": "Voorbeeld",
+      "noRoom_one": "{{count}} persoon heeft geen ruimte",
+      "noRoom_other": "{{count}} personen hebben geen ruimte",
+      "placeEvenly": "Gelijk verdelen",
+      "more": "+{{count}}",
+      "nobodyYet": "Nog niemand",
+      "open": "{{count}} ruimtes openen",
+      "openStaying_one": "{{rooms}} ruimtes openen · {{count}} blijft hier",
+      "openStaying_other": "{{rooms}} ruimtes openen · {{count}} blijven hier"
     },
     "active": {
       "empty": "Niemand toegewezen",

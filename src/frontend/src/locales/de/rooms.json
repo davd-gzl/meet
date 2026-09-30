@@ -836,14 +836,34 @@
     "error": "Die Aktion ist fehlgeschlagen. Bitte erneut versuchen.",
     "setup": {
       "roomCount": "Anzahl der Räume",
-      "unassignedOption": "Nicht zugewiesen",
+      "howToSplit": "Personen aufteilen",
+      "auto": {
+        "title": "Automatisch",
+        "description": "Alle werden gleichmäßig verteilt. Sie können danach anpassen.",
+        "summary": "Automatisch aufgeteilt · {{count}} Räume"
+      },
+      "manual": {
+        "title": "Manuell",
+        "description": "Sie bestimmen, wer wohin geht. Macht dort weiter, wo Sie aufgehört haben.",
+        "summary": "Manuell aufgeteilt · {{count}} Räume"
+      },
+      "last": {
+        "title": "Wie beim letzten Mal",
+        "description": "Alle, die noch da sind, kehren in ihren Raum zurück.",
+        "summary": "Wie beim letzten Mal · {{count}} Räume"
+      },
+      "back": "Aufteilung",
       "nobody": "Noch niemand zum Zuweisen",
-      "unassigned_one": "{{count}} Person nicht zugewiesen",
-      "unassigned_other": "{{count}} Personen nicht zugewiesen",
-      "allAssigned": "Alle sind zugewiesen",
-      "shuffle": "Zufällig zuweisen",
-      "assign": "Raum für {{name}}",
-      "open": "Räume öffnen"
+      "placeIn": "Raum {{number}} für {{name}}",
+      "preview": "Vorschau",
+      "noRoom_one": "{{count}} Person hat keinen Raum",
+      "noRoom_other": "{{count}} Personen haben keinen Raum",
+      "placeEvenly": "Gleichmäßig verteilen",
+      "more": "+{{count}}",
+      "nobodyYet": "Noch niemand",
+      "open": "{{count}} Räume öffnen",
+      "openStaying_one": "{{rooms}} Räume öffnen · {{count}} bleibt hier",
+      "openStaying_other": "{{rooms}} Räume öffnen · {{count}} bleiben hier"
     },
     "active": {
       "empty": "Niemand zugewiesen",

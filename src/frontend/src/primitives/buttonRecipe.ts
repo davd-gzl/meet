@@ -232,6 +232,22 @@ export const buttonRecipe = cva({
           color: 'greyscale.300',
         },
       },
+      // A neutral outline, filled with its colour palette once selected.
+      palette: {
+        backgroundColor: 'box.bg',
+        color: 'greyscale.700',
+        borderColor: 'greyscale.300',
+        fontWeight: 'medium !important',
+        '&[data-hovered]': {
+          borderColor: 'colorPalette.700',
+        },
+        '&[data-selected]': {
+          backgroundColor: 'colorPalette.200',
+          borderColor: 'colorPalette.700',
+          color: 'colorPalette.900',
+          fontWeight: 'bold !important',
+        },
+      },
       greyscale: {
         backgroundColor: 'transparent',
         color: 'greyscale.400',
