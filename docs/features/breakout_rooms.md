@@ -30,7 +30,7 @@ Nothing else is required: no worker, no scheduled task. The backend creates and 
 - A breakout room per smaller meeting: its display name and the name of its LiveKit room, `breakout_<session id>_<index>`.
 - An assignment per participant: the room, the participant's identity in the meeting (the account's `sub` when signed in, the signed guest identity otherwise) and their display name at the time.
 
-Closed sessions stay in the database. While a session is active, the main meeting's LiveKit metadata carries `{"breakout": {"session_id", "status": "active"}}`, which tells the browsers in it to move. The key is written through the same metadata writer as the recording status, which takes a per-room lock in Redis so neither write drops the other.
+Closed sessions stay in the database. While a session is active, the main meeting's LiveKit metadata carries `{"breakout": {"session_id", "status": "active"}}`, which tells the browsers in it to move.
 
 ## Closing
 
@@ -40,4 +40,6 @@ Close first marks the session `closing`, then removes the `breakout` key from th
 
 - A pass to a breakout room is valid for 60 seconds. LiveKit recreates a deleted room when someone joins it, so a pass fetched just before Close can reopen that room until it expires.
 - Nobody can leave their breakout room and come back to it, and the host does not visit rooms.
+- After each move, the camera and microphone start as they were chosen before joining the meeting.
+- The way back uses the pass the page opened with, which LiveKit keeps valid for 6 hours, and the name it carried. If that pass is refused, a reload brings the participant back.
 - There is no timer: a split stays open until the host closes it.

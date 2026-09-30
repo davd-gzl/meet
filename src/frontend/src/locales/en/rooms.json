@@ -854,9 +854,7 @@
       "currentRoom": "You are in {{room}}",
       "moving": "Moving to {{room}}…",
       "returning": "Returning to the main meeting…",
-      "moveFailed": "Could not move you to your room",
-      "returnFailed": "Could not bring you back to the main meeting",
-      "rejoin": "Rejoin"
+      "moveFailed": "Could not move you to your room"
     }
   }
 }

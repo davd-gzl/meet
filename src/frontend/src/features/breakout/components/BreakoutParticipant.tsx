@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useSnapshot } from 'valtio'
 import { css } from '@/styled-system/css'
-import { Button } from '@/primitives'
 import { Spinner } from '@/primitives/Spinner'
 import { breakoutStore } from '../store'
 import { useBreakout, type Connect } from '../hooks/useBreakout'
@@ -23,26 +22,13 @@ const overlay = css({
 export const BreakoutParticipant = ({
   mainRoomId,
   connect,
-  onRejoin,
 }: {
   mainRoomId: string
   connect: Connect
-  onRejoin: () => void
 }) => {
   const { t } = useTranslation('rooms', { keyPrefix: 'breakout.participant' })
-  const { room, target, moveFailed, returnFailed } = useSnapshot(breakoutStore)
+  const { room, target, moveFailed } = useSnapshot(breakoutStore)
   useBreakout(mainRoomId, connect)
-
-  if (returnFailed) {
-    return (
-      <div role="alert" className={overlay}>
-        {t('returnFailed')}
-        <Button variant="primary" onPress={onRejoin}>
-          {t('rejoin')}
-        </Button>
-      </div>
-    )
-  }
 
   if (target) {
     return (

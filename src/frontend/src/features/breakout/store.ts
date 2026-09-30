@@ -1,8 +1,6 @@
 import { proxy } from 'valtio'
 import { MIN_ROOMS, type Assignments } from './utils/setup'
 
-export type MediaIntent = { camera: boolean; microphone: boolean }
-
 type BreakoutRoomRef = { id: string; name: string }
 
 type BreakoutState = {
@@ -16,12 +14,6 @@ type BreakoutState = {
   sessionId: string | null
   // The last move failed; cleared by the next attempt or when the session ends.
   moveFailed: boolean
-  // Camera and microphone as last seen while connected.
-  media: MediaIntent | null
-  // Restored once the next connection is up.
-  pendingMedia: MediaIntent | null
-  // Neither the held pass nor a new entry brought this browser back.
-  returnFailed: boolean
   // The host's plan before Open, kept while the panel is closed.
   setup: { roomCount: number; assignments: Assignments }
 }
@@ -34,9 +26,6 @@ const initialState = (): BreakoutState => ({
   leaving: false,
   sessionId: null,
   moveFailed: false,
-  media: null,
-  pendingMedia: null,
-  returnFailed: false,
   setup: initialSetup(),
 })
 

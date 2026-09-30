@@ -44,13 +44,7 @@ afterEach(() => {
 describe('a failed move to the assigned room', () => {
   it('is shown, then tried again once the main room reconnects', async () => {
     const connect = vi.fn()
-    const ui = () => (
-      <BreakoutParticipant
-        mainRoomId="main"
-        connect={connect}
-        onRejoin={vi.fn()}
-      />
-    )
+    const ui = () => <BreakoutParticipant mainRoomId="main" connect={connect} />
     const { rerender } = render(ui())
     await flush()
     expect(screen.getByRole('status').textContent).toBe('moveFailed')

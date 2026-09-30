@@ -3,12 +3,9 @@
 # pylint: disable=no-name-in-module
 
 import asyncio
-import contextlib
 import json
 from logging import getLogger
 from typing import Dict, Optional
-
-from django.core.cache import cache
 
 from asgiref.sync import async_to_sync
 from livekit.api import (
@@ -17,7 +14,6 @@ from livekit.api import (
     TwirpError,
     UpdateRoomMetadataRequest,
 )
-from redis.exceptions import LockError, RedisError
 
 from core import utils
 
@@ -25,8 +21,6 @@ logger = getLogger(__name__)
 
 # The LiveKit client's own timeout never applies, so each call carries this one.
 MEDIA_SERVER_TIMEOUT_SECONDS = 5
-# Long enough for the read and the write of one metadata update.
-METADATA_LOCK_TIMEOUT_SECONDS = 3 * MEDIA_SERVER_TIMEOUT_SECONDS
 
 
 async def bounded(call):
@@ -47,7 +41,8 @@ class RoomManagement:
     """Service for managing LiveKit rooms."""
 
     @classmethod
-    def update_metadata(
+    @async_to_sync
+    async def update_metadata(
         cls,
         room_name: str,
         metadata: Optional[Dict] = None,
@@ -56,36 +51,12 @@ class RoomManagement:
         """Merge values into a LiveKit room's metadata.
 
         The `room_name` corresponds to the LiveKit room identifier
-        (i.e. the Room model's UUID as a string). Writers of the same room
-        take turns, so no write drops a key another one set.
+        (i.e. the Room model's UUID as a string).
 
         Raises:
             RoomNotFoundException: the room does not exist in LiveKit.
             RoomManagementException: the metadata update otherwise fails.
         """
-
-        lock = cache.lock(
-            f"room-metadata:{room_name}",
-            timeout=METADATA_LOCK_TIMEOUT_SECONDS,
-            blocking_timeout=MEDIA_SERVER_TIMEOUT_SECONDS,
-        )
-        try:
-            acquired = lock.acquire()
-        except RedisError as e:
-            raise RoomManagementException("Could not lock room metadata") from e
-        if not acquired:
-            raise RoomManagementException("Could not lock room metadata")
-
-        try:
-            cls._update_metadata(room_name, metadata, remove_keys)
-        finally:
-            with contextlib.suppress(LockError):
-                lock.release()
-
-    @staticmethod
-    @async_to_sync
-    async def _update_metadata(room_name, metadata, remove_keys):
-        """Read, merge and write a room's metadata; the caller holds the room's lock."""
 
         lkapi = utils.create_livekit_client()
 

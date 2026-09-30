@@ -849,9 +849,7 @@
       "currentRoom": "Estás en {{room}}",
       "moving": "Pasando a {{room}}…",
       "returning": "Volviendo a la reunión principal…",
-      "moveFailed": "No se pudo moverte a tu sala",
-      "returnFailed": "No se pudo volver a la reunión principal",
-      "rejoin": "Volver a unirse"
+      "moveFailed": "No se pudo moverte a tu sala"
     }
   }
 }
