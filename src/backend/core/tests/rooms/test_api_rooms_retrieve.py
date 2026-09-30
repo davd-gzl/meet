@@ -3,6 +3,7 @@ Test rooms API endpoints in the Meet core app: retrieve.
 """
 
 import random
+import uuid
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
 from unittest import mock
@@ -665,3 +666,13 @@ def test_api_rooms_retrieve_anonymous_public_identity_expires_when_idle(
         call.kwargs["participant_id"] for call in mock_token.call_args_list
     ]
     assert first != second
+
+
+@override_settings(ALLOW_UNREGISTERED_ROOMS=True)
+@mock.patch("core.utils.generate_token", return_value="foo")
+def test_api_rooms_retrieve_unregistered_breakout_room_refused(mock_token):
+    """A breakout room's name never opens as an unregistered meeting."""
+    response = APIClient().get(f"/api/v1.0/rooms/Breakout_{uuid.uuid4()!s}_0/")
+
+    assert response.status_code == 404
+    mock_token.assert_not_called()
