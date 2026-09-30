@@ -204,7 +204,6 @@ def close_session(session):
 def join_pass(room, assignment, user):
     """A member's pass to the participant's breakout room, publishing what room allows."""
     breakout_room = assignment.breakout_room
-    configuration = room.configuration
     return {
         "url": settings.LIVEKIT_CONFIGURATION["url"],
         "room": breakout_room.livekit_room_name,
@@ -212,7 +211,7 @@ def join_pass(room, assignment, user):
             room=breakout_room.livekit_room_name,
             user=user,
             username=assignment.name or None,
-            sources=configuration.get("can_publish_sources"),
+            sources=room.configuration.get("can_publish_sources"),
             role=models.RoleChoices.MEMBER,
             participant_id=assignment.identity,
             ttl=JOIN_TOKEN_TTL,

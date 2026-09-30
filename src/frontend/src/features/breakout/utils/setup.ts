@@ -37,9 +37,6 @@ export const shuffleAssignments = (
   return Object.fromEntries(order.map((id, i) => [id, i % roomCount]))
 }
 
-// The server keeps 255 characters of a name; joining takes any length.
-const MAX_NAME_LENGTH = 255
-
 export const buildRooms = (
   roomNames: string[],
   people: BreakoutPerson[],
@@ -47,10 +44,5 @@ export const buildRooms = (
 ) =>
   roomNames.map((name, index) => ({
     name,
-    participants: people
-      .filter((p) => assignments[p.identity] === index)
-      .map((p) => ({
-        ...p,
-        name: Array.from(p.name).slice(0, MAX_NAME_LENGTH).join(''),
-      })),
+    participants: people.filter((p) => assignments[p.identity] === index),
   }))

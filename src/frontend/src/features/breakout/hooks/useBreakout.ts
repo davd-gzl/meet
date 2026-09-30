@@ -9,7 +9,6 @@ import { reportError } from '@/features/analytics/telemetry'
 import { useRoomMetadata } from '@/features/recording/hooks/useRoomMetadata'
 import { fetchBreakoutAssignment, joinBreakoutRoom } from '../api'
 import { breakoutStore } from '../store'
-import { leaveCurrentRoom } from '../utils/roomLifecycle'
 import { shouldFetchAssignment } from '../utils/transitions'
 
 // Hands a pass to Conference, which builds a new Room for it.
@@ -31,7 +30,8 @@ const moveToAssignedRoom = async (
     )
     breakoutStore.pendingMedia = breakoutStore.media
     breakoutStore.leaving = true
-    await leaveCurrentRoom(room)
+    // connect() on a connected Room ignores its token, so leave first and wait.
+    await room.disconnect()
     breakoutStore.leaving = false
     breakoutStore.room = assignment.room
     connect(pass.token)
