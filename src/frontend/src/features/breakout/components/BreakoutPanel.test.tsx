@@ -85,7 +85,9 @@ describe('BreakoutPanel', () => {
         ).toBe('error')
       )
       expect(screen.queryByRole('button', { name: 'active.close' })).toBeNull()
-      expect(screen.queryByRole('button', { name: 'setup.open' })).toBeNull()
+      expect(
+        screen.queryByRole('button', { name: /setup\.auto\.title/ })
+      ).toBeNull()
     }
   )
 
@@ -94,7 +96,7 @@ describe('BreakoutPanel', () => {
     announce(null)
     vi.mocked(fetchBreakoutSession).mockResolvedValueOnce(null)
     const { rerender } = render(ui())
-    await screen.findByRole('button', { name: 'setup.open' })
+    await screen.findByRole('button', { name: /setup\.auto\.title/ })
     announce('s1')
     vi.mocked(fetchBreakoutSession).mockResolvedValueOnce(session)
     rerender(ui())
@@ -109,7 +111,9 @@ describe('BreakoutPanel', () => {
     })
     announce(null)
     rerender(ui())
-    expect(screen.queryByRole('button', { name: 'setup.open' })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: /setup\.auto\.title/ })
+    ).toBeNull()
     await screen.findByText('active.closing')
     expect(
       screen
@@ -165,6 +169,6 @@ describe('BreakoutPanel', () => {
     await waitFor(() =>
       expect(closeBreakoutSession).toHaveBeenCalledWith('room-1', 's1')
     )
-    await screen.findByRole('button', { name: 'setup.open' })
+    await screen.findByRole('button', { name: /setup\.auto\.title/ })
   })
 })

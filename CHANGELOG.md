@@ -15,6 +15,7 @@ and this project adheres to
 - ✅(frontend) add vitest so the frontend can carry unit tests
 - ✨(fullstack) split a meeting into breakout rooms and bring everyone back
 - ✨(fullstack) mute, subtitle and raise a hand inside a breakout room
+- ✨(fullstack) split people into up to 20 breakout rooms in a few clicks
 
 ### Fixed
 
