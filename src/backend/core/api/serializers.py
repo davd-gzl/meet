@@ -338,6 +338,17 @@ class MuteParticipantSerializer(BaseParticipantsManagementSerializer):
     track_sid = serializers.CharField(
         max_length=255, help_text="LiveKit track SID to mute"
     )
+    breakout_room_id = serializers.UUIDField(
+        required=False, help_text="Breakout room of the active split to mute in"
+    )
+
+
+class StartSubtitleSerializer(BaseValidationOnlySerializer):
+    """Validate a subtitle start request."""
+
+    breakout_room_id = serializers.UUIDField(
+        required=False, help_text="Breakout room of the active split to transcribe"
+    )
 
 
 class ParticipantRoleSerializer(BaseParticipantsManagementSerializer):
@@ -594,6 +605,9 @@ class RaiseHandSerializer(BaseValidationOnlySerializer):
     """Serializer for raising or lowering a participant's hand in a room."""
 
     raised = serializers.BooleanField()
+    breakout_room_id = serializers.UUIDField(
+        required=False, help_text="Breakout room of the active split to raise it in"
+    )
 
 
 class RenameParticipantSerializer(BaseValidationOnlySerializer):

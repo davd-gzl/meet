@@ -34,7 +34,6 @@ import { useSize } from '../../hooks/useResizeObserver'
 import { useRegisterKeyboardShortcut } from '@/features/shortcuts/useRegisterKeyboardShortcut'
 import { useRaisedHand } from '@/features/rooms/livekit/hooks/useRaisedHand'
 import { useRoomContext } from '@livekit/components-react'
-import { useIsInBreakoutRoom } from '@/features/breakout/hooks/useIsInBreakoutRoom'
 
 // Hand collapses first, then reactions; hidden toggles move into the menu.
 const COLLAPSIBLE_COUNT = 2
@@ -65,37 +64,27 @@ export function MobileControlBar({
 
   const [hiddenCount, setHiddenCount] = useState(0)
   const calibration = useRef<{ essential: number; slot: number }>()
-  const isInBreakoutRoom = useIsInBreakoutRoom()
-  // No hand in a breakout room: reactions are the only toggle to collapse.
-  const collapsibleCount = isInBreakoutRoom ? 1 : COLLAPSIBLE_COUNT
 
   useLayoutEffect(() => {
     if (hiddenCount === 0 && collapsibleWidth > 0 && barRef.current) {
       const gap = parseFloat(getComputedStyle(barRef.current).columnGap) || 0
       calibration.current = {
         essential: barWidth - collapsibleWidth - gap,
-        slot: (collapsibleWidth + gap) / collapsibleCount,
+        slot: (collapsibleWidth + gap) / COLLAPSIBLE_COUNT,
       }
     }
     if (!calibration.current || width <= 0) return
     const { essential, slot } = calibration.current
     const fits = Math.floor((width - essential) / slot)
     const next = Math.min(
-      collapsibleCount,
-      Math.max(0, collapsibleCount - fits)
+      COLLAPSIBLE_COUNT,
+      Math.max(0, COLLAPSIBLE_COUNT - fits)
     )
     if (next !== hiddenCount) setHiddenCount(next)
-  }, [
-    barWidth,
-    collapsibleWidth,
-    collapsibleCount,
-    hiddenCount,
-    width,
-    setHiddenCount,
-  ])
+  }, [barWidth, collapsibleWidth, hiddenCount, width, setHiddenCount])
 
   const hideHand = hiddenCount >= 1
-  const hideReactions = hiddenCount >= collapsibleCount
+  const hideReactions = hiddenCount >= 2
 
   const room = useRoomContext()
   const { toggleRaisedHand } = useRaisedHand({
@@ -104,7 +93,6 @@ export function MobileControlBar({
   useRegisterKeyboardShortcut({
     id: 'raise-hand',
     handler: toggleRaisedHand,
-    isDisabled: isInBreakoutRoom,
   })
   useRegisterKeyboardShortcut({
     id: 'reaction',

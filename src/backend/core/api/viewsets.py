@@ -655,8 +655,23 @@ class RoomViewSet(
 
         room = self.get_object()
 
+        serializer = serializers.StartSubtitleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        room_name = str(room.id)
+        if breakout_room_id := serializer.validated_data.get("breakout_room_id"):
+            breakout_room = breakout_services.active_room(room, breakout_room_id)
+            # Only a member of that breakout room starts its transcription.
+            if not breakout_room.assignments.filter(
+                identity=request.auth.identity
+            ).exists():
+                return drf_response.Response(
+                    {"error": "Not assigned to this breakout room"},
+                    status=drf_status.HTTP_403_FORBIDDEN,
+                )
+            room_name = breakout_room.livekit_room_name
+
         try:
-            SubtitleService().start_subtitle(room)
+            SubtitleService().start_subtitle(room_name)
         except SubtitleException:
             return drf_response.Response(
                 {"error": f"Subtitles failed to start for room {room.slug}"},
@@ -684,6 +699,12 @@ class RoomViewSet(
 
         serializer = serializers.MuteParticipantSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        room_name = str(room.pk)
+        if breakout_room_id := serializer.validated_data.get("breakout_room_id"):
+            # Caller and target are both in that breakout room's media server room.
+            room_name = breakout_services.active_room(
+                room, breakout_room_id
+            ).livekit_room_name
 
         # TEMPORARY: a LiveKit token proves access was granted, not that the caller
         # joined. Cross-check identity against the live participant list until auth
@@ -692,7 +713,7 @@ class RoomViewSet(
         if caller_identity is not None:
             try:
                 ParticipantsManagement().check_if_in_meeting(
-                    room_name=str(room.pk),
+                    room_name=room_name,
                     identity=caller_identity,
                 )
             except (ParticipantNotFoundException, ParticipantsManagementException):
@@ -707,7 +728,7 @@ class RoomViewSet(
 
         try:
             ParticipantsManagement().mute(
-                room_name=str(room.pk),
+                room_name=room_name,
                 identity=str(serializer.validated_data["participant_identity"]),
                 track_sid=serializer.validated_data["track_sid"],
             )
@@ -826,6 +847,12 @@ class RoomViewSet(
         serializer.is_valid(raise_exception=True)
 
         identity = request.auth.identity
+        room_name = str(room.pk)
+        if breakout_room_id := serializer.validated_data.get("breakout_room_id"):
+            # The hand goes up in the breakout room the caller is in.
+            room_name = breakout_services.active_room(
+                room, breakout_room_id
+            ).livekit_room_name
 
         # LiveKit uses the handRaisedAt participant attribute to signal hand state.
         # An empty string means the hand is lowered; a non-empty ISO 8601 timestamp
@@ -837,7 +864,7 @@ class RoomViewSet(
 
         try:
             ParticipantsManagement().update(
-                room_name=str(room.pk),
+                room_name=room_name,
                 identity=identity,
                 attributes={"handRaisedAt": hand_raised_at},
             )

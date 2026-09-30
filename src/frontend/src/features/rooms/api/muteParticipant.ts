@@ -9,12 +9,16 @@ import { fetchApi } from '@/api/fetchApi'
 import { useIsAdminOrOwner } from '../livekit/hooks/useIsAdminOrOwner'
 
 import { useCallback } from 'react'
+import { useSnapshot } from 'valtio'
 import { reportError } from '@/features/analytics/telemetry'
+import { breakoutStore } from '@/features/breakout/store'
 
 export const useMuteParticipant = () => {
   const apiRoomData = useRoomData()
   const { notifyParticipants } = useNotifyParticipants()
   const isAdminOrOwner = useIsAdminOrOwner()
+  // In a breakout room, both people are in that room rather than the meeting's.
+  const breakoutRoomId = useSnapshot(breakoutStore).room?.id
 
   const muteParticipant = useCallback(
     async (participant: Participant) => {
@@ -53,6 +57,7 @@ export const useMuteParticipant = () => {
             body: JSON.stringify({
               participant_identity: participant.identity,
               track_sid: trackSid,
+              breakout_room_id: breakoutRoomId,
             }),
           }
         )
@@ -82,7 +87,7 @@ export const useMuteParticipant = () => {
 
       return response
     },
-    [apiRoomData, isAdminOrOwner, notifyParticipants]
+    [apiRoomData, isAdminOrOwner, notifyParticipants, breakoutRoomId]
   )
 
   return { muteParticipant }

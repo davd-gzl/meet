@@ -8,7 +8,6 @@ import { useRoomContext, useTrackToggle } from '@livekit/components-react'
 import { useRaisedHand } from '@/features/rooms/livekit/hooks/useRaisedHand'
 import { useTranslation } from 'react-i18next'
 import { Track } from 'livekit-client'
-import { useIsInBreakoutRoom } from '@/features/breakout/hooks/useIsInBreakoutRoom'
 
 type PipOverflowItemsProps = {
   overflowControls: Set<CollapsibleControl>
@@ -29,7 +28,6 @@ export const PipOptionsMenuItems = ({
     })
   const { toggle: toggleReactions } = useReactionsToolbar()
   const itemClass = menuRecipe({ icon: true, variant: 'dark' }).item
-  const isInBreakoutRoom = useIsInBreakoutRoom()
 
   return (
     <RACMenu
@@ -62,7 +60,7 @@ export const PipOptionsMenuItems = ({
           )}
         </MenuItem>
       )}
-      {overflowControls.has(CollapsibleControls.HAND) && !isInBreakoutRoom && (
+      {overflowControls.has(CollapsibleControls.HAND) && (
         <MenuItem onAction={toggleRaisedHand} className={itemClass}>
           <RiHand size={20} />
           {isHandRaised ? t('controls.hand.lower') : t('controls.hand.raise')}

@@ -14,7 +14,7 @@ A host who removes someone from the meeting also removes them from the open spli
 
 ## In a breakout room
 
-Raise hand, rename, muting someone and starting subtitles are hidden in a breakout room. The browser holds only its pass to the main meeting, and each of them acts on the main meeting's LiveKit room with that pass: muting is refused there, since the caller is not in that room, and subtitles would transcribe the main meeting instead.
+Muting someone and starting subtitles act on the breakout room the caller is in. The browser still authenticates with its pass to the main meeting and names the breakout room of the active split it is in: the backend checks the caller is present in that room's LiveKit room and mutes there, and starts the transcription agent in that LiveKit room for a participant assigned to it. A raised hand goes up in the breakout room too, so the people in it see it, while the hosts in the meeting do not. Rename stays hidden in a breakout room.
 
 A browser that loses its breakout room while the split is still active goes back to the meeting and from there into its room again: a connection that dropped for good, a LiveKit server that shut down, or a first join that failed. It tries once per loss; if the room fails again before it is reached, the browser stays in the meeting with a notice until the next split. When Close deletes the rooms, everyone stays in the meeting.
 

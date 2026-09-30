@@ -1,8 +1,12 @@
 import { fetchApi } from '@/api/fetchApi'
 import { useRoomData } from '@/features/rooms/livekit/hooks/useRoomData'
+import { useSnapshot } from 'valtio'
+import { breakoutStore } from '@/features/breakout/store'
 
 export const useRaiseHand = () => {
   const data = useRoomData()
+  // In a breakout room, the hand goes up in that room.
+  const breakoutRoomId = useSnapshot(breakoutStore).room?.id
 
   const raiseHand = async (raised: boolean) => {
     if (!data?.id) {
@@ -22,6 +26,7 @@ export const useRaiseHand = () => {
       },
       body: JSON.stringify({
         raised,
+        breakout_room_id: breakoutRoomId,
       }),
     })
   }
