@@ -5,10 +5,12 @@ import type { BreakoutPerson } from '../api'
 export const MIN_ROOMS = 2
 export const MAX_ROOMS = 10
 
-// Only browsers follow a move: phone callers and agents stay, and so do the hosts.
+// Only browsers whose pass says they follow a move: not phone callers, agents,
+// hosts, nor a tab loaded before the feature.
 export const isAssignable = (p: Participant) =>
   !p.isLocal &&
   p.kind === ParticipantKind.STANDARD &&
+  p.attributes?.breakout === 'true' &&
   !getParticipantIsRoomAdminOrOwner(p)
 
 // Room index per identity; an index past the room count means unassigned.

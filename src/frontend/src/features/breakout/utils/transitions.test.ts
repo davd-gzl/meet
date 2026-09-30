@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { DisconnectReason } from 'livekit-client'
-import { disconnectAction, shouldFetchAssignment } from './transitions'
+import {
+  disconnectAction,
+  returnsToRoom,
+  shouldFetchAssignment,
+} from './transitions'
 
 const inMain = { room: null, target: null, sessionId: null }
 const breakoutRoom = { id: 'r1', name: 'Room 1' }
@@ -45,7 +49,6 @@ describe('disconnectAction', () => {
     for (const reason of [
       DisconnectReason.ROOM_DELETED,
       DisconnectReason.SERVER_SHUTDOWN,
-      DisconnectReason.PARTICIPANT_REMOVED,
       DisconnectReason.JOIN_FAILURE,
       undefined,
     ]) {
@@ -53,18 +56,32 @@ describe('disconnectAction', () => {
     }
   })
 
-  it('lets a participant who hangs up in a breakout room leave', () => {
-    expect(
-      disconnectAction(DisconnectReason.CLIENT_INITIATED, inBreakout)
-    ).toBe('default')
-    expect(
-      disconnectAction(DisconnectReason.DUPLICATE_IDENTITY, inBreakout)
-    ).toBe('default')
+  it('lets a participant who hangs up or is removed in a breakout room leave', () => {
+    for (const reason of [
+      DisconnectReason.CLIENT_INITIATED,
+      DisconnectReason.DUPLICATE_IDENTITY,
+      DisconnectReason.PARTICIPANT_REMOVED,
+    ]) {
+      expect(disconnectAction(reason, inBreakout)).toBe('default')
+    }
   })
 
   it('keeps the existing behaviour in the main meeting', () => {
     expect(disconnectAction(DisconnectReason.ROOM_DELETED, mainMeeting)).toBe(
       'default'
     )
+  })
+})
+
+describe('returnsToRoom', () => {
+  it('sends a browser back into its room unless the split closed', () => {
+    expect(returnsToRoom(DisconnectReason.ROOM_DELETED)).toBe(false)
+    for (const reason of [
+      DisconnectReason.SERVER_SHUTDOWN,
+      DisconnectReason.JOIN_FAILURE,
+      undefined,
+    ]) {
+      expect(returnsToRoom(reason)).toBe(true)
+    }
   })
 })

@@ -12,6 +12,7 @@ from django.core.cache import cache
 from django.utils import timezone
 
 from core import models, utils
+from core.breakout import services as breakout_services
 
 logger = logging.getLogger(__name__)
 
@@ -220,6 +221,7 @@ class LobbyService:
                 configuration=room.configuration,
                 participant_id=participant_id,
                 role=user_role,
+                attributes=breakout_services.client_attributes(request),
             )
             return participant, livekit_config
 
@@ -241,6 +243,7 @@ class LobbyService:
                 configuration=room.configuration,
                 participant_id=participant_id,
                 role=user_role,
+                attributes=breakout_services.client_attributes(request),
             )
 
         return participant, livekit_config

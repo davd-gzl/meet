@@ -20,6 +20,10 @@ vi.mock('@livekit/components-react', () => ({
     metadata: JSON.stringify({ breakout: { session_id: 's1' } }),
   }),
   useConnectionState: () => h.state,
+  useLocalParticipant: () => ({
+    isCameraEnabled: false,
+    isMicrophoneEnabled: true,
+  }),
 }))
 vi.mock('@/features/analytics/telemetry', () => ({ reportError: vi.fn() }))
 vi.mock('../api', () => ({
@@ -42,7 +46,13 @@ afterEach(() => {
 describe('a failed move to the assigned room', () => {
   it('is shown, then tried again once the main room reconnects', async () => {
     const connect = vi.fn()
-    const ui = () => <BreakoutParticipant mainRoomId="main" connect={connect} />
+    const ui = () => (
+      <BreakoutParticipant
+        mainRoomId="main"
+        connect={connect}
+        onRejoin={vi.fn()}
+      />
+    )
     const { rerender } = render(ui())
     await flush()
     expect(screen.getByRole('status').textContent).toBe('moveFailed')
@@ -63,7 +73,13 @@ describe('a failed move to the assigned room', () => {
       vi.mocked(joinBreakoutRoom).mockClear()
       vi.mocked(joinBreakoutRoom).mockRejectedValueOnce(new Error('503'))
       const connect = vi.fn()
-      render(<BreakoutParticipant mainRoomId="main" connect={connect} />)
+      render(
+        <BreakoutParticipant
+          mainRoomId="main"
+          connect={connect}
+          onRejoin={vi.fn()}
+        />
+      )
       await act(async () => vi.advanceTimersByTimeAsync(0))
       expect(screen.getByRole('status').textContent).toBe('moveFailed')
 
@@ -85,7 +101,13 @@ describe('a move the server refuses', () => {
       vi.mocked(joinBreakoutRoom).mockRejectedValueOnce(
         new ApiError(403, { detail: 'Invalid LiveKit token' })
       )
-      render(<BreakoutParticipant mainRoomId="main" connect={vi.fn()} />)
+      render(
+        <BreakoutParticipant
+          mainRoomId="main"
+          connect={vi.fn()}
+          onRejoin={vi.fn()}
+        />
+      )
       await act(async () => vi.advanceTimersByTimeAsync(0))
 
       await act(async () => vi.advanceTimersByTimeAsync(5000))
@@ -105,7 +127,11 @@ describe('a move still running when the meeting is left', () => {
     )
     const connect = vi.fn()
     const { unmount } = render(
-      <BreakoutParticipant mainRoomId="main" connect={connect} />
+      <BreakoutParticipant
+        mainRoomId="main"
+        connect={connect}
+        onRejoin={vi.fn()}
+      />
     )
     await flush()
     unmount()

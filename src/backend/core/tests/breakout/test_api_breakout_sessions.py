@@ -536,3 +536,92 @@ def test_api_breakout_sessions_join_closed(livekit):
     models.BreakoutSession.objects.update(status=CLOSED)
 
     assert join(room, "alice").status_code == 404
+
+
+# Removing a participant
+
+
+def remove(room, host, identity):
+    """The host removes an identity from the meeting."""
+    return host.post(
+        f"/api/v1.0/rooms/{room.id!s}/remove-participant/",
+        {"participant_identity": identity},
+        format="json",
+    )
+
+
+def test_api_breakout_sessions_removed_participant_loses_room(livekit, owner_room):
+    """Someone the host removes can no longer join their breakout room."""
+    room, host = owner_room
+    session = make_session(room, ["alice"], ["bob"])
+    livekit.room.remove_participant = mock.AsyncMock()
+
+    assert remove(room, host, "alice").status_code == 200
+
+    assert join(room, "alice").status_code == 404
+    assert list(session.assignments.values_list("identity", flat=True)) == ["bob"]
+
+
+def test_api_breakout_sessions_remove_participant_in_breakout_room(livekit, owner_room):
+    """Removing someone in a breakout room takes them out of it."""
+    room, host = owner_room
+    session = make_session(room, ["alice"], ["bob"])
+    own = session.rooms.get(name="Room 2")
+
+    async def remove_participant(request):
+        if request.room != own.livekit_room_name:
+            raise TwirpError("not_found", "not in this room", status=404)
+
+    livekit.room.remove_participant = mock.AsyncMock(side_effect=remove_participant)
+
+    assert remove(room, host, "bob").status_code == 200
+
+    asked = {
+        call.args[0].room for call in livekit.room.remove_participant.await_args_list
+    }
+    assert asked == {
+        str(room.id),
+        *session.rooms.values_list("livekit_room_name", flat=True),
+    }
+
+
+def test_api_breakout_sessions_remove_participant_retries(livekit, owner_room):
+    """A removal the media server fails answers 503, and a retry still finds them."""
+    room, host = owner_room
+    session = make_session(room, ["alice"])
+    own = session.rooms.get()
+    failures = [TwirpError("internal", "boom", status=500)]
+
+    async def remove_participant(request):
+        if request.room != own.livekit_room_name:
+            raise TwirpError("not_found", "not in this room", status=404)
+        if failures:
+            raise failures.pop()
+
+    livekit.room.remove_participant = mock.AsyncMock(side_effect=remove_participant)
+
+    assert remove(room, host, "alice").status_code == 503
+    assert not session.assignments.exists()
+    assert remove(room, host, "alice").status_code == 200
+
+
+# Passes of browsers that can move
+
+
+@pytest.mark.parametrize("query, assignable", [("?breakout=1", True), ("", False)])
+def test_api_breakout_sessions_pass_marks_a_browser_that_can_move(query, assignable):
+    """Only a browser asking for it gets a pass the host's panel can assign."""
+    room = RoomFactory(access_level=models.RoomAccessLevel.PUBLIC)
+    client = APIClient()
+    base = f"/api/v1.0/rooms/{room.id!s}/"
+
+    retrieved = client.get(f"{base}{query}")
+    entered = client.post(
+        f"{base}request-entry/{query}", {"username": "Ann"}, format="json"
+    )
+
+    for response in (retrieved, entered):
+        assert response.status_code == 200
+        token = response.json()["livekit"]["token"]
+        claims = jwt.decode(token, options={"verify_signature": False})
+        assert (claims["attributes"].get("breakout") == "true") is assignable

@@ -14,7 +14,12 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from asgiref.sync import async_to_sync
-from livekit.api import CreateRoomRequest, DeleteRoomRequest, TwirpError
+from livekit.api import (
+    CreateRoomRequest,
+    DeleteRoomRequest,
+    RoomParticipantIdentity,
+    TwirpError,
+)
 from rest_framework import exceptions
 
 from core import models, utils
@@ -31,6 +36,10 @@ METADATA_KEY = "breakout"
 EMPTY_TIMEOUT_SECONDS = 300
 # Closing deletes the rooms, and an unspent pass could recreate one until it expires.
 JOIN_TOKEN_TTL = timedelta(seconds=60)
+# A browser that can follow a move asks for its pass with this query parameter.
+CLIENT_PARAMETER = "breakout"
+# Carried by that pass, so the host assigns no browser loaded before the feature.
+ASSIGNABLE_ATTRIBUTE = "breakout"
 
 
 class SessionAlreadyActive(exceptions.APIException):
@@ -76,6 +85,29 @@ async def _create_rooms(lkapi, names):
     if errors:
         await _delete_rooms(lkapi, names)
         raise errors[0]
+
+
+async def _remove_from_rooms(lkapi, names, identity):
+    """Remove an identity from media server rooms; True when it was in one."""
+    results = await asyncio.gather(
+        *(
+            bounded(
+                lkapi.room.remove_participant(
+                    RoomParticipantIdentity(room=name, identity=identity)
+                )
+            )
+            for name in names
+        ),
+        return_exceptions=True,
+    )
+    removed = False
+    for result in results:
+        if isinstance(result, TwirpError) and result.code == "not_found":
+            continue
+        if isinstance(result, Exception):
+            raise result
+        removed = True
+    return removed
 
 
 def _run(step, *args):
@@ -209,3 +241,26 @@ def join_pass(room, assignment, user):
             ttl=JOIN_TOKEN_TTL,
         ),
     }
+
+
+def client_attributes(request):
+    """The attributes of a main-meeting pass for the browser asking for it."""
+    if request.GET.get(CLIENT_PARAMETER) == "1":
+        return {ASSIGNABLE_ATTRIBUTE: "true"}
+    return {}
+
+
+def remove_participant(room, identity):
+    """Revoke a removed participant's assignment and take them out of the open split.
+
+    True when they were in one of its rooms. Every room is asked, so a retry
+    after a failure still finds them once the assignment is gone.
+    """
+    session = room.breakout_sessions.filter(
+        status__in=models.OPEN_BREAKOUT_STATUSES
+    ).first()
+    if session is None:
+        return False
+    session.assignments.filter(identity=identity).delete()
+    names = list(session.rooms.values_list("livekit_room_name", flat=True))
+    return _run(_remove_from_rooms, names, identity)

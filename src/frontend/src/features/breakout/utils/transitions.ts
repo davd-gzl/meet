@@ -18,7 +18,7 @@ export const shouldFetchAssignment = (
 
 export type DisconnectAction = 'ignore' | 'returnToMain' | 'default'
 
-// A breakout room left by anything but the browser itself sends it back.
+// A breakout room left by anything but the browser itself or a removal sends it back.
 export const disconnectAction = (
   reason: DisconnectReason | undefined,
   state: { leaving: boolean; room: unknown }
@@ -27,8 +27,13 @@ export const disconnectAction = (
   if (
     state.room !== null &&
     reason !== DisconnectReason.CLIENT_INITIATED &&
-    reason !== DisconnectReason.DUPLICATE_IDENTITY
+    reason !== DisconnectReason.DUPLICATE_IDENTITY &&
+    reason !== DisconnectReason.PARTICIPANT_REMOVED
   )
     return 'returnToMain'
   return 'default'
 }
+
+// Only a close deletes the rooms; any other loss goes back into the room.
+export const returnsToRoom = (reason: DisconnectReason | undefined) =>
+  reason !== DisconnectReason.ROOM_DELETED

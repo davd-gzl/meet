@@ -303,6 +303,7 @@ def test_request_entry_public_room(
         configuration=room.configuration,
         participant_id="test-participant-id",
         role=None,
+        attributes={},
     )
 
     lobby_service._get_participant.assert_called_once_with(room.id, participant_id)
@@ -342,6 +343,7 @@ def test_request_entry_trusted_room(
         configuration=room.configuration,
         participant_id="test-participant-id",
         role=None,
+        attributes={},
     )
 
     lobby_service._get_participant.assert_called_once_with(room.id, participant_id)
@@ -442,6 +444,7 @@ def test_request_entry_accepted_participant(
         configuration=room.configuration,
         participant_id="test-participant-id",
         role=None,
+        attributes={},
     )
     lobby_service._get_participant.assert_called_once_with(room.id, participant_id)
 
@@ -483,6 +486,7 @@ def test_request_entry_participant_with_role(
         configuration=room.configuration,
         participant_id="test-participant-id",
         role="administrator",
+        attributes={},
     )
     lobby_service._get_participant.assert_called_once_with(room.id, participant_id)
 

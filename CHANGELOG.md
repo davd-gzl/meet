@@ -28,6 +28,7 @@ and this project adheres to
 - 🐛(summary) disable default S3 checksums for GCS-compatible storage
 - 🔒️(summary) redact meeting content from Sentry events
 - 🐛(frontend) hide tooltips until they have a computed placement
+- 🐛(fullstack) keep breakout rooms safe across drops, removals and deploys
 
 ## [1.33.0] - 2026-09-30
 

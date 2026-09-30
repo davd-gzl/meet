@@ -854,7 +854,9 @@
       "currentRoom": "Du bist in {{room}}",
       "moving": "Wechsel zu {{room}}…",
       "returning": "Rückkehr zur Hauptbesprechung…",
-      "moveFailed": "Du konntest nicht in deinen Raum verschoben werden"
+      "moveFailed": "Du konntest nicht in deinen Raum verschoben werden",
+      "returnFailed": "Du konntest nicht zur Hauptbesprechung zurückgebracht werden",
+      "rejoin": "Erneut beitreten"
     }
   }
 }

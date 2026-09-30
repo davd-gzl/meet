@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { useConnectionState, useRoomContext } from '@livekit/components-react'
+import {
+  useConnectionState,
+  useLocalParticipant,
+  useRoomContext,
+} from '@livekit/components-react'
 import { ConnectionState, type Room } from 'livekit-client'
 import { ApiError } from '@/api/ApiError'
 import { reportError } from '@/features/analytics/telemetry'
@@ -26,6 +30,7 @@ const moveToAssignedRoom = async (
   if (!pass || breakoutStore.target || !mounted.current) return
   breakoutStore.target = pass.room
   try {
+    breakoutStore.pendingMedia = breakoutStore.media
     breakoutStore.leaving = true
     // connect() on a connected Room ignores its token, so leave first and wait.
     await room.disconnect()
@@ -33,7 +38,11 @@ const moveToAssignedRoom = async (
     breakoutStore.room = pass.room
     connect(pass.token)
   } catch (error) {
-    Object.assign(breakoutStore, { target: null, leaving: false })
+    Object.assign(breakoutStore, {
+      target: null,
+      leaving: false,
+      pendingMedia: null,
+    })
     throw error
   }
 }
@@ -50,6 +59,18 @@ export const useBreakout = (mainRoomId: string, connect: Connect) => {
       mounted.current = false
     }
   }, [])
+
+  const { isCameraEnabled, isMicrophoneEnabled } = useLocalParticipant()
+
+  // Recorded while connected, since a deleted room has already unpublished them.
+  useEffect(() => {
+    if (state !== ConnectionState.Connected || breakoutStore.pendingMedia)
+      return
+    breakoutStore.media = {
+      camera: isCameraEnabled,
+      microphone: isMicrophoneEnabled,
+    }
+  }, [state, isCameraEnabled, isMicrophoneEnabled])
 
   const sessionId: string | null =
     useRoomMetadata()?.breakout?.session_id ?? null
