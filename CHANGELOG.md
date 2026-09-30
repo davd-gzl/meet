@@ -18,6 +18,7 @@ and this project adheres to
 
 - 🐛(frontend) enforce recording-mode permissions on the checkboxes
 - 🔒️(agents) fix util-linux CVEs reported by Cyberwatch
+- 🔒️(backend) sign guest identities and scope them to each room
 
 ## [1.33.0] - 2026-09-30
 
