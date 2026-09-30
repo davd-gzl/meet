@@ -21,6 +21,7 @@ and this project adheres to
 ### Fixed
 
 - ⚡️(frontend) disable posthog-js periodic feature flag reloads
+- 🔒️(backend) sign guest identities and scope them to each room
 
 ## [1.32.1] - 2026-09-25
 
