@@ -174,7 +174,8 @@ class LobbyService:
             if capability is None:
                 capability = secrets.token_urlsafe(32)
             setattr(request, cls._REQUEST_CAPABILITY_ATTRIBUTE, capability)
-        # Derived from the capability alone, so a key rotation keeps identities.
+        # Derived from the capability alone, so identities survive a SECRET_KEY
+        # rotation that keeps the old key in SECRET_KEY_FALLBACKS.
         digest = hashlib.sha256(
             f"{cls.GUEST_IDENTITY_SALT}:{room_id}:{capability}".encode()
         ).hexdigest()
