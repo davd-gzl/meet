@@ -12,7 +12,7 @@ from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.core import signing
 from django.core.cache import cache
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpResponse
 from django.test import override_settings
 
 import pytest
@@ -27,6 +27,7 @@ from core.services.lobby import (
     LobbyParticipantStatus,
     LobbyService,
 )
+from core.tests.guests import guest_request
 from core.utils import NotificationError
 
 pytestmark = pytest.mark.django_db
@@ -155,14 +156,6 @@ def test_get_cache_key(lobby_service, participant_id):
 
     expected_key = f"{settings.LOBBY_KEY_PREFIX}_{room.id!s}_{participant_id}"
     assert cache_key == expected_key
-
-
-def guest_request(cookie=None):
-    """Return a request carrying the given lobby cookie, if any."""
-    request = HttpRequest()
-    if cookie is not None:
-        request.COOKIES[settings.LOBBY_COOKIE_NAME] = cookie
-    return request
 
 
 def test_get_or_create_participant_id_from_cookie(lobby_service):

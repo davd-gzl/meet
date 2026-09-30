@@ -7,7 +7,6 @@ import uuid
 from unittest import mock
 
 from django.core.cache import cache
-from django.http import HttpRequest
 
 import pytest
 from freezegun import freeze_time
@@ -19,6 +18,7 @@ from ...models import RoomAccessLevel
 from ...services.lobby import (
     LobbyService,
 )
+from ..guests import guest_request
 
 pytestmark = pytest.mark.django_db
 
@@ -316,9 +316,9 @@ def test_request_entry_waiting_participant_public_room(settings):
     settings.LOBBY_KEY_PREFIX = "mocked-cache-prefix"
 
     guest_cookie = LobbyService.sign_guest_capability(str(uuid.uuid4()))
-    guest_request = HttpRequest()
-    guest_request.COOKIES["mocked-cookie"] = guest_cookie
-    participant_id = LobbyService.get_or_create_participant_id(guest_request, room.id)
+    participant_id = LobbyService.get_or_create_participant_id(
+        guest_request(guest_cookie), room.id
+    )
 
     # Add a waiting participant to the room's lobby cache
     cache.set(

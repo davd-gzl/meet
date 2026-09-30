@@ -3,12 +3,12 @@ Test rooms API endpoints in the Meet core app: retrieve.
 """
 
 import random
+import uuid
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
 from unittest import mock
 
 from django.contrib.auth.models import AnonymousUser
-from django.http import HttpRequest
 from django.test.utils import override_settings
 from django.utils import timezone
 
@@ -17,6 +17,7 @@ from freezegun import freeze_time
 from rest_framework.test import APIClient
 
 from core.services.lobby import LobbyService
+from core.tests.guests import guest_request
 
 from ...factories import RoomFactory, UserFactory, UserResourceAccessFactory
 from ...models import RoleChoices, RoomAccessLevel
@@ -559,8 +560,7 @@ def test_api_rooms_retrieve_anonymous_public_issues_lobby_identity(
     identity = mock_token.call_args.kwargs["participant_id"]
     assert identity.startswith("guest_")
 
-    replay = HttpRequest()
-    replay.COOKIES[settings.LOBBY_COOKIE_NAME] = cookie.value
+    replay = guest_request(cookie.value)
     assert LobbyService.get_or_create_participant_id(replay, room.id) == identity
 
 
@@ -613,6 +613,15 @@ def test_api_rooms_retrieve_anonymous_public_one_guest_cookie(mock_token, settin
     assert len(identities) == 40
 
 
+@pytest.mark.parametrize(
+    "visits_before_expiry,distinct_identities",
+    [
+        # A guest who keeps visiting keeps one identity past the signature age.
+        (True, 1),
+        # A guest idle past the signature age gets a new identity.
+        (False, 2),
+    ],
+)
 @mock.patch("core.utils.generate_token", return_value="foo")
 @override_settings(
     LIVEKIT_CONFIGURATION={
@@ -621,47 +630,33 @@ def test_api_rooms_retrieve_anonymous_public_one_guest_cookie(mock_token, settin
         "url": "test_url_value",
     }
 )
-def test_api_rooms_retrieve_anonymous_public_identity_outlives_first_issue(
-    mock_token, settings
+def test_api_rooms_retrieve_anonymous_public_identity_lifetime(
+    mock_token, visits_before_expiry, distinct_identities, settings
 ):
-    """A guest who keeps visiting keeps one identity past the signature age."""
+    """A visit renews the guest's identity for the signature age."""
     room = RoomFactory(access_level=RoomAccessLevel.PUBLIC)
     client = APIClient()
     start = datetime(2026, 9, 29, 8, 0, tzinfo=dt_timezone.utc)
     age = timedelta(seconds=settings.SESSION_COOKIE_AGE)
+    visits = [timedelta(0), age + timedelta(minutes=1)]
+    if visits_before_expiry:
+        visits.insert(1, age - timedelta(hours=1))
 
-    for elapsed in (timedelta(0), age - timedelta(hours=1), age + timedelta(minutes=1)):
+    for elapsed in visits:
         with freeze_time(start + elapsed):
             response = client.get(f"/api/v1.0/rooms/{room.id!s}/")
         assert response.status_code == 200
 
     identities = [call.kwargs["participant_id"] for call in mock_token.call_args_list]
-    assert identities == [identities[0]] * 3
+    assert len(identities) == len(visits)
+    assert len(set(identities)) == distinct_identities
 
 
+@override_settings(ALLOW_UNREGISTERED_ROOMS=True)
 @mock.patch("core.utils.generate_token", return_value="foo")
-@override_settings(
-    LIVEKIT_CONFIGURATION={
-        "api_key": "key",
-        "api_secret": "secret",
-        "url": "test_url_value",
-    }
-)
-def test_api_rooms_retrieve_anonymous_public_identity_expires_when_idle(
-    mock_token, settings
-):
-    """A guest idle past the signature age gets a new identity."""
-    room = RoomFactory(access_level=RoomAccessLevel.PUBLIC)
-    client = APIClient()
-    start = datetime(2026, 9, 29, 8, 0, tzinfo=dt_timezone.utc)
-    age = timedelta(seconds=settings.SESSION_COOKIE_AGE)
+def test_api_rooms_retrieve_unregistered_breakout_room_refused(mock_token):
+    """A breakout room's name never opens as an unregistered meeting."""
+    response = APIClient().get(f"/api/v1.0/rooms/Breakout_{uuid.uuid4()!s}_0/")
 
-    for elapsed in (timedelta(0), age + timedelta(minutes=1)):
-        with freeze_time(start + elapsed):
-            response = client.get(f"/api/v1.0/rooms/{room.id!s}/")
-        assert response.status_code == 200
-
-    first, second = [
-        call.kwargs["participant_id"] for call in mock_token.call_args_list
-    ]
-    assert first != second
+    assert response.status_code == 404
+    mock_token.assert_not_called()

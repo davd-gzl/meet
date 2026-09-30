@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
@@ -10,7 +10,6 @@ import {
   ConnectionErrorReason,
   DisconnectReason,
   MediaDeviceFailure,
-  Room,
   type RoomOptions,
   VideoPresets,
 } from 'livekit-client'
@@ -45,6 +44,8 @@ import { userStore } from '@/stores/user'
 import { WatchMediaDeviceErrors } from './WatchMediaDeviceErrors'
 import { MeetDevtools } from '@/features/devtools'
 import { VOICE_AUDIO_CONSTRAINTS } from '@/features/rooms/livekit/utils/constants'
+import { BreakoutParticipant } from '@/features/breakout/components/BreakoutParticipant'
+import { useBreakoutConnection } from '@/features/breakout/hooks/useBreakoutConnection'
 
 export const Conference = ({
   roomId,
@@ -132,7 +133,12 @@ export const Conference = ({
     apiConfig?.livekit.default_video_codec,
   ])
 
-  const room = useMemo(() => new Room(roomOptions), [roomOptions])
+  const breakout = useBreakoutConnection(
+    roomId,
+    roomOptions,
+    data?.livekit?.token
+  )
+  const { room, onError: onBreakoutError } = breakout
 
   useEffect(() => {
     /**
@@ -183,6 +189,29 @@ export const Conference = ({
 
   const hasAutoMutedRef = useRef(false)
 
+  // Kept stable: LiveKitRoom runs connect() again whenever onError changes.
+  const onError = useCallback(
+    (e: Error) => {
+      const failure = getMediaDeviceFailure(e)
+      if (failure && failure !== MediaDeviceFailure.Other) return
+
+      // connect() was aborted by a disconnect() before the join completed
+      if (
+        e instanceof ConnectionError &&
+        e.reason === ConnectionErrorReason.Cancelled
+      ) {
+        void captureEvent('connection-cancelled')
+        return
+      }
+
+      reportError('livekit_room_error', e, {
+        path: 'connect_publish',
+      })
+      onBreakoutError(e)
+    },
+    [onBreakoutError]
+  )
+
   /*
    * Ensure stable WebSocket connection URL. This is critical for legacy browser compatibility
    * (Firefox <124, Chrome <125, Edge <125) where HTTPS URLs in WebSocket() constructor
@@ -221,10 +250,12 @@ export const Conference = ({
         <LiveKitRoom
           room={room}
           serverUrl={serverUrl}
-          token={data?.livekit?.token}
+          key={breakout.attempt}
+          token={breakout.token || data?.livekit?.token}
           connect={isConnectionWarmedUp}
-          audio={userConfig.audioEnabled}
+          audio={!breakout.pendingMedia && userConfig.audioEnabled}
           video={
+            !breakout.pendingMedia &&
             userConfig.videoEnabled && {
               processor: BackgroundProcessorFactory.fromProcessorConfig(
                 userConfig.processorConfig
@@ -235,24 +266,9 @@ export const Conference = ({
           className={css({
             backgroundColor: 'primaryDark.50 !important',
           })}
-          onError={(e) => {
-            const failure = getMediaDeviceFailure(e)
-            if (failure && failure !== MediaDeviceFailure.Other) return
-
-            // connect() was aborted by a disconnect() before the join completed
-            if (
-              e instanceof ConnectionError &&
-              e.reason === ConnectionErrorReason.Cancelled
-            ) {
-              void captureEvent('connection-cancelled')
-              return
-            }
-
-            reportError('livekit_room_error', e, {
-              path: 'connect_publish',
-            })
-          }}
+          onError={onError}
           onConnected={async () => {
+            if (await breakout.onConnected()) return
             if (!apiConfig) return
             if (
               userPreferencesSnap.is_auto_mute_large_room_enabled &&
@@ -266,6 +282,7 @@ export const Conference = ({
             }
           }}
           onDisconnected={(e) => {
+            if (breakout.onDisconnected(e)) return
             const metadata = {
               room_id: roomId,
             }
@@ -297,6 +314,13 @@ export const Conference = ({
           }}
         >
           <WatchMediaDeviceErrors />
+          {data?.id && (
+            <BreakoutParticipant
+              mainRoomId={data.id}
+              connect={breakout.connect}
+              onRejoin={breakout.rejoin}
+            />
+          )}
           <VideoConference />
           {!isMobile && <InviteDialog mode={mode} />}
           <PictureInPictureConference />

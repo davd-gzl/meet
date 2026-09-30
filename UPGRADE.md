@@ -16,6 +16,14 @@ the following command inside your docker container:
 
 ## [Unreleased]
 
+### Breakout rooms
+
+This release adds breakout rooms, off by default behind `BREAKOUT_ROOMS_ENABLED`, and signs the lobby cookie of anonymous participants. See [the breakout rooms documentation](docs/features/breakout_rooms.md).
+
+- **Rolling back.** Migration `0025_breakout_rooms` adds tables whose foreign keys point at rooms and users. The previous release does not know them, so it cannot delete a room or a user that a breakout session references, and `purge_inactive_rooms` fails on such a room. Before deploying the previous image, run `python manage.py migrate core 0024`, which drops the breakout tables and every session in them.
+- **Rolling deploys and the lobby cookie.** The lobby cookie of an anonymous participant is now a signed value under a new default name, `lobbyGuest`, and their identity in a meeting becomes `guest_` followed by 40 hex characters. The previous release never reads the new cookie, so it never shows the signed value as an identity; if you had set `LOBBY_COOKIE_NAME`, give it a new value. While old and new pods serve side by side, a host served by an old pod cannot admit a guest a new pod identified (the old pod answers 400). Deploy this release with a recreate strategy, or accept that admissions fail for guests until every pod runs it.
+- **Old pods and `breakout_*` rooms.** Breakout rooms are LiveKit rooms named `breakout_<session id>_<index>`, and the session id is in the meeting's metadata. Only the new release refuses to hand out a pass to such a name as an unregistered room. With `ALLOW_UNREGISTERED_ROOMS=true`, which is the default, a pod still running the previous release gives anyone a pass to a breakout room they were not assigned to. Keep `BREAKOUT_ROOMS_ENABLED` off until no pod runs the previous release.
+
 ### Purging inactive rooms
 
 Rooms now keep track of the last time they were started (`last_started_at`), fed by LiveKit's `room_started` webhook. A new `purge_inactive_rooms` management command permanently deletes the rooms that have not been started for `ROOM_INACTIVITY_DELETION_DAYS` days. See [the room purge documentation](docs/features/room-purge.md).

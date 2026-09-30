@@ -13,6 +13,7 @@ from django.utils import timezone
 from livekit import api
 
 from core import models
+from core.breakout import services as breakout_services
 from core.recording.enums import RecordingWorkerEvent
 from core.recording.services.metadata_collector import (
     MetadataCollectorException,
@@ -164,6 +165,10 @@ class LiveKitEventsService:
             )
             return
 
+        if room_name.startswith(models.BreakoutRoom.LIVEKIT_ROOM_PREFIX):
+            logger.info("Ignoring webhook event for breakout room '%s'.", room_name)
+            return
+
         if self._filter_regex and not self._filter_regex.search(room_name):
             logger.info("Filtered webhook event for room '%s'", room_name)
             return
@@ -304,22 +309,40 @@ class LiveKitEventsService:
             )
             raise ActionFailedError("Failed to process room finished event") from e
 
-        if settings.ROOM_TELEPHONY_ENABLED or settings.ROOMKIT_ENABLED:
-            try:
-                self.sip_management.delete_dispatch_rule(room_id)
-            except SIPException as e:
-                raise ActionFailedError(
-                    f"Failed to delete sip dispatch rule for room {room_id}"
-                ) from e
-
-        self.presence_cache.clear_room(room_id)
-
         try:
-            self.lobby_service.clear_room_cache(room_id)
-        except Exception as e:
-            raise ActionFailedError(
-                f"Failed to clear room cache for room {room_id}"
-            ) from e
+            if settings.ROOM_TELEPHONY_ENABLED or settings.ROOMKIT_ENABLED:
+                try:
+                    self.sip_management.delete_dispatch_rule(room_id)
+                except SIPException as e:
+                    raise ActionFailedError(
+                        f"Failed to delete sip dispatch rule for room {room_id}"
+                    ) from e
+
+            self.presence_cache.clear_room(room_id)
+
+            try:
+                self.lobby_service.clear_room_cache(room_id)
+            except Exception as e:
+                raise ActionFailedError(
+                    f"Failed to clear room cache for room {room_id}"
+                ) from e
+        finally:
+            # A failed cleanup above must not leave the split open for the next meeting.
+            self._close_breakout_session(room_id)
+
+    def _close_breakout_session(self, room_id):
+        """Close the meeting's open breakout session, if any."""
+        # Hosts are never moved, so an empty meeting is a split nobody will close.
+        session = models.BreakoutSession.objects.filter(
+            room_id=room_id, status__in=models.OPEN_BREAKOUT_STATUSES
+        ).first()
+        if session is not None:
+            try:
+                breakout_services.close_session(session)
+            except breakout_services.MediaServerError as e:
+                raise ActionFailedError(
+                    f"Failed to close breakout session of room {room_id}"
+                ) from e
 
     def _handle_participant_left(self, data):
         """Handle 'participant_left': invalidate the presence cache.

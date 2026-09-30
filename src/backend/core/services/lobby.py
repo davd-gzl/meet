@@ -17,6 +17,9 @@ from core import models, utils
 
 logger = logging.getLogger(__name__)
 
+# Tells a request whose guest cookie was never read from one whose cookie read as None.
+_UNREAD = object()
+
 
 class LobbyParticipantStatus(Enum):
     """Possible states of a participant in the lobby system.
@@ -90,6 +93,7 @@ class LobbyService:
     GUEST_COOKIE_SALT = "meet.guest-capability.v1"
     GUEST_IDENTITY_SALT = "meet.guest-identity.v1"
     _REQUEST_CAPABILITY_ATTRIBUTE = "_meet_guest_capability"
+    _REQUEST_COOKIE_ATTRIBUTE = "_meet_guest_cookie_capability"
 
     @staticmethod
     def _get_cache_key(room_id: UUID, participant_id: str) -> str:
@@ -148,18 +152,25 @@ class LobbyService:
 
         The cookie ends with the browser session, and its signature expires
         after SESSION_COOKIE_AGE unless prepare_response renews it on a visit.
+        It is checked once per request, an invalid cookie reading as None every
+        time.
         """
+        capability = getattr(request, cls._REQUEST_COOKIE_ATTRIBUTE, _UNREAD)
+        if capability is not _UNREAD:
+            return capability
+        capability = None
         cookie_value = request.COOKIES.get(settings.LOBBY_COOKIE_NAME)
-        if not cookie_value:
-            return None
-        try:
-            return signing.loads(
-                cookie_value,
-                salt=cls.GUEST_COOKIE_SALT,
-                max_age=settings.SESSION_COOKIE_AGE,
-            )
-        except signing.BadSignature:
-            return None
+        if cookie_value:
+            try:
+                capability = signing.loads(
+                    cookie_value,
+                    salt=cls.GUEST_COOKIE_SALT,
+                    max_age=settings.SESSION_COOKIE_AGE,
+                )
+            except signing.BadSignature:
+                pass
+        setattr(request, cls._REQUEST_COOKIE_ATTRIBUTE, capability)
+        return capability
 
     @classmethod
     def get_or_create_participant_id(cls, request, room_id: UUID) -> str:
@@ -179,6 +190,17 @@ class LobbyService:
             f"{cls.GUEST_IDENTITY_SALT}:{room_id}:{capability}".encode()
         ).hexdigest()
         return f"guest_{digest[:40]}"
+
+    @classmethod
+    def participant_identity(cls, request, room_id: UUID) -> str:
+        """Return the caller's identity in one room.
+
+        The account's sub when signed in, never issuing a guest capability, and
+        the guest's identity otherwise.
+        """
+        if request.user.is_authenticated:
+            return str(request.user.sub)
+        return cls.get_or_create_participant_id(request, room_id)
 
     @classmethod
     def prepare_response(cls, response, request) -> None:
