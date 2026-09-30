@@ -254,7 +254,7 @@ def test_prepare_response_new_cookie(lobby_service):
     assert cookie["httponly"] is True
     assert cookie["secure"] is True
     assert cookie["samesite"] == "Lax"
-    assert int(cookie["max-age"]) == settings.SESSION_COOKIE_AGE
+    assert not cookie["max-age"]  # a session cookie
     assert response["Cache-Control"] == "no-store"
 
 

@@ -624,7 +624,7 @@ def test_api_rooms_retrieve_anonymous_public_one_guest_cookie(mock_token, settin
 def test_api_rooms_retrieve_anonymous_public_identity_outlives_first_issue(
     mock_token, settings
 ):
-    """A guest who keeps visiting keeps one identity past the cookie age."""
+    """A guest who keeps visiting keeps one identity past the signature age."""
     room = RoomFactory(access_level=RoomAccessLevel.PUBLIC)
     client = APIClient()
     start = datetime(2026, 9, 29, 8, 0, tzinfo=dt_timezone.utc)
@@ -650,7 +650,7 @@ def test_api_rooms_retrieve_anonymous_public_identity_outlives_first_issue(
 def test_api_rooms_retrieve_anonymous_public_identity_expires_when_idle(
     mock_token, settings
 ):
-    """A guest idle past the cookie age gets a new identity, as the browser would."""
+    """A guest idle past the signature age gets a new identity."""
     room = RoomFactory(access_level=RoomAccessLevel.PUBLIC)
     client = APIClient()
     start = datetime(2026, 9, 29, 8, 0, tzinfo=dt_timezone.utc)

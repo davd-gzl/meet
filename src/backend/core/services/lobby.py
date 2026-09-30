@@ -146,8 +146,8 @@ class LobbyService:
     def read_guest_capability(cls, request) -> Optional[str]:
         """Return the capability signed into the browser's cookie, if still valid.
 
-        The signature is checked against the same age as the cookie, and both
-        are renewed together by prepare_response on every visit.
+        The cookie ends with the browser session, and its signature expires
+        after SESSION_COOKIE_AGE unless prepare_response renews it on a visit.
         """
         cookie_value = request.COOKIES.get(settings.LOBBY_COOKIE_NAME)
         if not cookie_value:
@@ -190,7 +190,6 @@ class LobbyService:
         response.set_cookie(
             key=settings.LOBBY_COOKIE_NAME,
             value=cls.sign_guest_capability(capability),
-            max_age=settings.SESSION_COOKIE_AGE,
             httponly=True,
             secure=True,
             samesite="Lax",
