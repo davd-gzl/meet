@@ -11,7 +11,7 @@ def guest_request(cookie=None):
     """Return a request carrying the given lobby cookie, if any."""
     request = HttpRequest()
     if cookie is not None:
-        request.COOKIES[settings.LOBBY_COOKIE_NAME] = cookie
+        request.COOKIES[settings.LOBBY_GUEST_COOKIE_NAME] = cookie
     return request
 
 

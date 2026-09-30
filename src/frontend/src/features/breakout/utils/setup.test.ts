@@ -13,14 +13,23 @@ const participant = (
   ({
     isLocal: false,
     kind: ParticipantKind.STANDARD,
-    attributes: { room_role: 'member' },
+    attributes: { room_role: 'member', breakout: 'true' },
     ...overrides,
   }) as unknown as Participant
 
 describe('isAssignable', () => {
   it('offers a room to a browser participant', () => {
     expect(isAssignable(participant({}))).toBe(true)
-    expect(isAssignable(participant({ attributes: {} }))).toBe(true)
+    expect(
+      isAssignable(participant({ attributes: { breakout: 'true' } }))
+    ).toBe(true)
+  })
+
+  it('leaves out a tab loaded before breakout rooms, which cannot move', () => {
+    expect(
+      isAssignable(participant({ attributes: { room_role: 'member' } }))
+    ).toBe(false)
+    expect(isAssignable(participant({ attributes: {} }))).toBe(false)
   })
 
   it('leaves out phone callers and agents, who do not follow a move', () => {
@@ -36,10 +45,16 @@ describe('isAssignable', () => {
   it('leaves out the local host and the other hosts', () => {
     expect(isAssignable(participant({ isLocal: true }))).toBe(false)
     expect(
-      isAssignable(participant({ attributes: { room_role: 'owner' } }))
+      isAssignable(
+        participant({ attributes: { room_role: 'owner', breakout: 'true' } })
+      )
     ).toBe(false)
     expect(
-      isAssignable(participant({ attributes: { room_role: 'administrator' } }))
+      isAssignable(
+        participant({
+          attributes: { room_role: 'administrator', breakout: 'true' },
+        })
+      )
     ).toBe(false)
   })
 })

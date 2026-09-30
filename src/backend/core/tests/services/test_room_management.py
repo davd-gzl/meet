@@ -3,6 +3,7 @@
 import asyncio
 import json
 import threading
+import time
 import uuid
 from unittest import mock
 
@@ -189,7 +190,7 @@ def test_update_metadata_lock_busy():
             mock.patch.object(
                 room_management.utils, "create_livekit_client", return_value=client
             ),
-            mock.patch.object(room_management, "MEDIA_SERVER_TIMEOUT_SECONDS", 0.05),
+            mock.patch.object(room_management, "METADATA_LOCK_TIMEOUT_SECONDS", 0.05),
             pytest.raises(RoomManagementException),
         ):
             RoomManagement.update_metadata(room_name, {"key": "value"})
@@ -197,3 +198,38 @@ def test_update_metadata_lock_busy():
         held.release()
 
     client.room.list_rooms.assert_not_awaited()
+
+
+def test_update_metadata_waits_for_a_slow_writer():
+    """A write lands after another held the lock longer than one media server call."""
+    room_name = str(uuid.uuid4())
+
+    async def list_rooms(request):
+        return mock.Mock(rooms=[mock.Mock(metadata="{}")])
+
+    client = fake_livekit(list_rooms)
+    acquired = threading.Event()
+
+    def slow_writer():
+        held = cache.lock(f"room-metadata:{room_name}", timeout=2)
+        held.acquire()
+        acquired.set()
+        time.sleep(0.5)
+        held.release()
+
+    holder = threading.Thread(target=slow_writer)
+    with (
+        mock.patch.object(
+            room_management.utils, "create_livekit_client", return_value=client
+        ),
+        mock.patch.object(room_management, "MEDIA_SERVER_TIMEOUT_SECONDS", 0.1),
+        mock.patch.object(room_management, "METADATA_LOCK_TIMEOUT_SECONDS", 2),
+    ):
+        holder.start()
+        acquired.wait()
+        try:
+            RoomManagement.update_metadata(room_name, {"key": "value"})
+        finally:
+            holder.join()
+
+    client.room.update_room_metadata.assert_awaited_once()

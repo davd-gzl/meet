@@ -33,7 +33,7 @@ const guest = {
   name: 'Ann',
   isLocal: false,
   kind: ParticipantKind.STANDARD,
-  attributes: { room_role: 'member' },
+  attributes: { room_role: 'member', breakout: 'true' },
 }
 
 const renderSetup = () =>

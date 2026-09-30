@@ -14,6 +14,7 @@ from django.utils import timezone
 from django.utils.crypto import salted_hmac
 
 from core import models, utils
+from core.breakout import services as breakout_services
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,7 @@ class LobbyService:
         if capability is not _UNREAD:
             return capability
         capability = None
-        cookie_value = request.COOKIES.get(settings.LOBBY_COOKIE_NAME)
+        cookie_value = request.COOKIES.get(settings.LOBBY_GUEST_COOKIE_NAME)
         if cookie_value:
             try:
                 capability = signing.loads(
@@ -204,7 +205,7 @@ class LobbyService:
         # A token plus a Set-Cookie must never be served from a shared cache.
         response["Cache-Control"] = "no-store"
         response.set_cookie(
-            key=settings.LOBBY_COOKIE_NAME,
+            key=settings.LOBBY_GUEST_COOKIE_NAME,
             value=signing.dumps(capability, salt=cls.GUEST_COOKIE_SALT),
             max_age=settings.SESSION_COOKIE_AGE,
             httponly=True,
@@ -284,6 +285,7 @@ class LobbyService:
                 configuration=room.configuration,
                 participant_id=participant_id,
                 role=user_role,
+                attributes=breakout_services.client_attributes(request),
             )
             return participant, livekit_config
 
@@ -305,6 +307,7 @@ class LobbyService:
                 configuration=room.configuration,
                 participant_id=participant_id,
                 role=user_role,
+                attributes=breakout_services.client_attributes(request),
             )
 
         return participant, livekit_config

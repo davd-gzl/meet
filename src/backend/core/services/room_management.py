@@ -64,10 +64,11 @@ class RoomManagement:
             RoomManagementException: the metadata update otherwise fails.
         """
 
+        # A writer waits as long as another may hold the lock, so none gives up early.
         lock = cache.lock(
             f"room-metadata:{room_name}",
             timeout=METADATA_LOCK_TIMEOUT_SECONDS,
-            blocking_timeout=MEDIA_SERVER_TIMEOUT_SECONDS,
+            blocking_timeout=METADATA_LOCK_TIMEOUT_SECONDS,
         )
         try:
             acquired = lock.acquire()

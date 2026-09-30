@@ -281,6 +281,7 @@ def test_api_rooms_retrieve_authenticated_public(mock_token):
         sources=["camera"],
         role=None,
         participant_id=None,
+        attributes={},
     )
 
 
@@ -332,6 +333,7 @@ def test_api_rooms_retrieve_authenticated_trusted(mock_token):
         sources=None,
         role=None,
         participant_id=None,
+        attributes={},
     )
 
 
@@ -418,6 +420,7 @@ def test_api_rooms_retrieve_members(mock_token, django_assert_num_queries, setti
         sources=["camera"],
         role=str(RoleChoices.MEMBER),
         participant_id=None,
+        attributes={},
     )
 
 
@@ -514,6 +517,7 @@ def test_api_rooms_retrieve_administrators(
         sources=None,
         role=str(user_access.role),
         participant_id=None,
+        attributes={},
     )
 
 
@@ -553,7 +557,7 @@ def test_api_rooms_retrieve_anonymous_public_issues_lobby_identity(
 
     assert response.status_code == 200
     assert response["Cache-Control"] == "no-store"
-    cookie = response.cookies[settings.LOBBY_COOKIE_NAME]
+    cookie = response.cookies[settings.LOBBY_GUEST_COOKIE_NAME]
     assert cookie["httponly"] is True
     assert cookie["secure"] is True
 
@@ -583,7 +587,7 @@ def test_api_rooms_retrieve_authenticated_public_sets_no_guest_cookie(
     response = client.get(f"/api/v1.0/rooms/{room.id!s}/")
 
     assert response.status_code == 200
-    assert settings.LOBBY_COOKIE_NAME not in response.cookies
+    assert settings.LOBBY_GUEST_COOKIE_NAME not in response.cookies
     assert mock_token.call_args.kwargs["participant_id"] is None
 
 
@@ -608,7 +612,7 @@ def test_api_rooms_retrieve_anonymous_public_one_guest_cookie(mock_token, settin
         response = client.get(f"/api/v1.0/rooms/{room.id!s}/")
         assert response.status_code == 200
 
-    assert list(client.cookies) == [settings.LOBBY_COOKIE_NAME]
+    assert list(client.cookies) == [settings.LOBBY_GUEST_COOKIE_NAME]
     identities = {call.kwargs["participant_id"] for call in mock_token.call_args_list}
     assert len(identities) == 40
 

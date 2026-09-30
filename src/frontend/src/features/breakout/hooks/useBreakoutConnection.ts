@@ -17,7 +17,7 @@ import { BackgroundProcessorFactory } from '@/features/rooms/livekit/components/
 import { userChoicesStore } from '@/stores/userChoices'
 import { userStore } from '@/stores/user'
 import { breakoutStore, resetBreakout } from '../store'
-import { disconnectAction } from '../utils/transitions'
+import { disconnectAction, returnsToRoom } from '../utils/transitions'
 
 // Where the pass of the current Room came from: the page's own, a breakout
 // room's, the main-meeting pass held since the page opened, or a new entry.
@@ -99,23 +99,37 @@ export const useBreakoutConnection = (
     Object.assign(breakoutStore, { target: null, returnFailed: true })
   }, [slug, room, open])
 
-  const returnToMain = useCallback(() => {
-    // A failed join reaches both onDisconnected and onError; return once.
-    if (breakoutStore.target === 'main') return
-    Object.assign(breakoutStore, {
-      target: 'main',
-      room: null,
-      returnFailed: false,
-      pendingMedia: breakoutStore.media,
-    })
-    // The held pass carries the name from page load, so a rename asks anew.
-    const name = room.localParticipant.name
-    const held = tokenName(heldToken ?? '')
-    const renamed = !!name && held !== undefined && held !== name
-    if (heldToken && heldToken !== refusedHeld.current && !renamed)
-      open(heldToken, 'held')
-    else void enterAgain()
-  }, [heldToken, room, open, enterAgain])
+  // toRoom: go back into the assigned room once the main meeting is reached.
+  const returnToMain = useCallback(
+    (toRoom: boolean) => {
+      // A failed join reaches both onDisconnected and onError; return once.
+      if (breakoutStore.target === 'main') return
+      const { sessionId, resentFor } = breakoutStore
+      // Once per session until the room is reached again, so a failing room never loops.
+      if (toRoom && sessionId) {
+        if (resentFor === sessionId) breakoutStore.moveFailed = true
+        else
+          Object.assign(breakoutStore, {
+            sessionId: null,
+            resentFor: sessionId,
+          })
+      }
+      Object.assign(breakoutStore, {
+        target: 'main',
+        room: null,
+        returnFailed: false,
+        pendingMedia: breakoutStore.media,
+      })
+      // The held pass carries the name from page load, so a rename asks anew.
+      const name = room.localParticipant.name
+      const held = tokenName(heldToken ?? '')
+      const renamed = !!name && held !== undefined && held !== name
+      if (heldToken && heldToken !== refusedHeld.current && !renamed)
+        open(heldToken, 'held')
+      else void enterAgain()
+    },
+    [heldToken, room, open, enterAgain]
+  )
 
   // Kept stable per attempt: LiveKitRoom runs connect() again whenever onError changes.
   const onError = useCallback(
@@ -125,7 +139,7 @@ export const useBreakoutConnection = (
         breakoutStore.target = null
         return
       }
-      if (connection.via === 'breakout') return returnToMain()
+      if (connection.via === 'breakout') return returnToMain(true)
       if (connection.via === 'held') {
         if (
           error instanceof ConnectionError &&
@@ -146,7 +160,7 @@ export const useBreakoutConnection = (
   const onDisconnected = (reason?: DisconnectReason) => {
     if (connection.attempt !== latest.current) return true
     const action = disconnectAction(reason, breakoutStore)
-    if (action === 'returnToMain') returnToMain()
+    if (action === 'returnToMain') returnToMain(returnsToRoom(reason))
     return action !== 'default'
   }
 
@@ -154,6 +168,8 @@ export const useBreakoutConnection = (
   const onConnected = async () => {
     const media = breakoutStore.pendingMedia
     Object.assign(breakoutStore, { target: null, returnFailed: false })
+    // In the room again, so a later loss gets its own way back.
+    if (breakoutStore.room) breakoutStore.resentFor = null
     if (!media) return false
     // Back as before the move, background effect included.
     try {
@@ -182,7 +198,7 @@ export const useBreakoutConnection = (
     token: connection.token,
     pendingMedia,
     connect,
-    rejoin: returnToMain,
+    rejoin: () => returnToMain(false),
     onError,
     onConnected,
     onDisconnected,

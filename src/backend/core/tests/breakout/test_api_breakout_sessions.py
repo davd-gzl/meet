@@ -9,15 +9,17 @@ import time
 from unittest import mock
 
 from django.conf import settings
+from django.contrib.auth.models import AnonymousUser
 from django.db import IntegrityError
 
 import jwt
 import pytest
 from asgiref.sync import sync_to_async
 from livekit.api import TwirpError
+from livekit.protocol.models import ParticipantInfo
 from rest_framework.test import APIClient
 
-from core import models
+from core import models, utils
 from core.breakout import services
 from core.factories import RoomFactory, UserFactory, UserResourceAccessFactory
 from core.services import room_management
@@ -116,7 +118,7 @@ def guest_client(room):
     """A guest's client carrying a signed capability, and its identity in the room."""
     cookie = signed_capability("capability")
     client = APIClient()
-    client.cookies[settings.LOBBY_COOKIE_NAME] = cookie
+    client.cookies[settings.LOBBY_GUEST_COOKIE_NAME] = cookie
     replay = guest_request(cookie)
     return client, LobbyService.get_or_create_participant_id(replay, room.id)
 
@@ -611,3 +613,191 @@ def test_api_breakout_sessions_join_guest(livekit):
     assert response.status_code == 200
     claims = jwt.decode(response.json()["token"], options={"verify_signature": False})
     assert claims["sub"] == identity
+
+
+# Removing a participant
+
+
+def remove(room, host, identity):
+    """The host removes an identity from the meeting."""
+    return host.post(
+        f"/api/v1.0/rooms/{room.id!s}/remove-participant/",
+        {"participant_identity": identity},
+        format="json",
+    )
+
+
+@pytest.mark.parametrize("signed_in", [False, True])
+def test_api_breakout_sessions_removed_participant_loses_room(
+    livekit, owner_room, signed_in
+):
+    """Someone the host removes can neither find nor join their breakout room."""
+    room, host = owner_room
+    if signed_in:
+        user, client = logged_in(room)
+        identity = str(user.sub)
+    else:
+        client, identity = guest_client(room)
+    session = make_session(room, [identity], ["bob"])
+    own = session.rooms.get(name="Room 1")
+    livekit.room.remove_participant = mock.AsyncMock()
+
+    assert remove(room, host, identity).status_code == 200
+
+    assert client.get(url(room, "current-assignment/")).status_code == 404
+    join = url(room, f"{session.id!s}/rooms/{own.id!s}/join/")
+    assert client.post(join).status_code == 404
+    assert list(session.assignments.values_list("identity", flat=True)) == ["bob"]
+
+
+def test_api_breakout_sessions_remove_participant_in_breakout_room(livekit, owner_room):
+    """Removing someone in a breakout room takes them out of it."""
+    room, host = owner_room
+    session = make_session(room, ["alice"], ["bob"])
+    own = session.rooms.get(name="Room 2")
+
+    async def remove_participant(request):
+        if request.room != own.livekit_room_name:
+            raise TwirpError("not_found", "not in this room", status=404)
+
+    livekit.room.remove_participant = mock.AsyncMock(side_effect=remove_participant)
+
+    assert remove(room, host, "bob").status_code == 200
+
+    asked = {
+        call.args[0].room for call in livekit.room.remove_participant.await_args_list
+    }
+    assert asked == {
+        str(room.id),
+        *session.rooms.values_list("livekit_room_name", flat=True),
+    }
+
+
+def test_api_breakout_sessions_remove_participant_retries(livekit, owner_room):
+    """A removal the media server fails answers 503, and a retry still finds them."""
+    room, host = owner_room
+    session = make_session(room, ["alice"])
+    own = session.rooms.get()
+    failures = [TwirpError("internal", "boom", status=500)]
+
+    async def remove_participant(request):
+        if request.room != own.livekit_room_name:
+            raise TwirpError("not_found", "not in this room", status=404)
+        if failures:
+            raise failures.pop()
+
+    livekit.room.remove_participant = mock.AsyncMock(side_effect=remove_participant)
+
+    assert remove(room, host, "alice").status_code == 503
+    assert not session.assignments.exists()
+    assert remove(room, host, "alice").status_code == 200
+
+
+# Muting and subtitles inside a breakout room
+
+
+def pass_for(room, identity):
+    """A main-meeting pass for identity, as a browser in a breakout room holds it."""
+    return utils.generate_token(str(room.id), AnonymousUser(), participant_id=identity)
+
+
+def mute(room, token, breakout_room_id):
+    """Mute bob's microphone, addressing a breakout room."""
+    return APIClient().post(
+        f"/api/v1.0/rooms/{room.id!s}/mute-participant/",
+        {
+            "participant_identity": "bob",
+            "track_sid": "TR_mic",
+            "breakout_room_id": str(breakout_room_id),
+        },
+        format="json",
+        HTTP_AUTHORIZATION=f"Bearer {token}",
+    )
+
+
+def test_api_breakout_sessions_mute_in_breakout_room(livekit):
+    """The caller's presence is checked, and the track muted, in their breakout room."""
+    room = RoomFactory()
+    session = make_session(room, ["alice", "bob"])
+    own = session.rooms.get()
+    livekit.room.get_participant = mock.AsyncMock(
+        return_value=ParticipantInfo(
+            identity="alice", state=ParticipantInfo.State.ACTIVE
+        )
+    )
+    livekit.room.mute_published_track = mock.AsyncMock()
+
+    response = mute(room, pass_for(room, "alice"), own.id)
+
+    assert response.status_code == 200
+    assert livekit.room.get_participant.await_args.args[0].room == own.livekit_room_name
+    muted = livekit.room.mute_published_track.await_args.args[0]
+    assert (muted.room, muted.identity) == (own.livekit_room_name, "bob")
+
+
+@pytest.mark.parametrize("which", ["closing", "other meeting"])
+def test_api_breakout_sessions_mute_outside_active_split(livekit, which):
+    """A breakout room of a closing split or of another meeting is not found."""
+    room = RoomFactory()
+    other = room if which == "closing" else RoomFactory()
+    session = make_session(other, ["alice", "bob"])
+    if which == "closing":
+        models.BreakoutSession.objects.update(status=CLOSING)
+    livekit.room.get_participant = mock.AsyncMock(
+        return_value=ParticipantInfo(
+            identity="alice", state=ParticipantInfo.State.ACTIVE
+        )
+    )
+    livekit.room.mute_published_track = mock.AsyncMock()
+
+    response = mute(room, pass_for(room, "alice"), session.rooms.get().id)
+
+    assert response.status_code == 404
+    livekit.room.mute_published_track.assert_not_awaited()
+
+
+def test_api_breakout_sessions_start_subtitle_in_breakout_room(livekit, settings):
+    """Subtitles start in the caller's breakout room, and only a member of it starts them."""
+    settings.ROOM_SUBTITLE_ENABLED = True
+    room = RoomFactory()
+    session = make_session(room, ["alice"], ["bob"])
+    own = session.rooms.get(name="Room 1")
+    livekit.agent_dispatch.create_dispatch = mock.AsyncMock()
+
+    def start(identity):
+        return APIClient().post(
+            f"/api/v1.0/rooms/{room.id!s}/start-subtitle/",
+            {"breakout_room_id": str(own.id)},
+            format="json",
+            HTTP_AUTHORIZATION=f"Bearer {pass_for(room, identity)}",
+        )
+
+    assert start("alice").status_code == 200
+    dispatch = livekit.agent_dispatch.create_dispatch.await_args.args[0]
+    assert dispatch.room == own.livekit_room_name
+
+    livekit.agent_dispatch.create_dispatch.reset_mock()
+    assert start("bob").status_code == 403
+    livekit.agent_dispatch.create_dispatch.assert_not_awaited()
+
+
+# Passes of browsers that can move
+
+
+@pytest.mark.parametrize("query, assignable", [("?breakout=1", True), ("", False)])
+def test_api_breakout_sessions_pass_marks_a_browser_that_can_move(query, assignable):
+    """Only a browser asking for it gets a pass the host's panel can assign."""
+    room = RoomFactory(access_level=models.RoomAccessLevel.PUBLIC)
+    client = APIClient()
+    base = f"/api/v1.0/rooms/{room.id!s}/"
+
+    retrieved = client.get(f"{base}{query}")
+    entered = client.post(
+        f"{base}request-entry/{query}", {"username": "Ann"}, format="json"
+    )
+
+    for response in (retrieved, entered):
+        assert response.status_code == 200
+        token = response.json()["livekit"]["token"]
+        claims = jwt.decode(token, options={"verify_signature": False})
+        assert (claims["attributes"].get("breakout") == "true") is assignable

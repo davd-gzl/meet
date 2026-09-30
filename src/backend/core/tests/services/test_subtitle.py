@@ -28,7 +28,7 @@ def test_start_subtitle_settings(mock_livekit_client, settings):
     settings.ROOM_SUBTITLE_AGENT_NAME = "fake-subtitle-agent-name"
 
     room = RoomFactory(name="my room")
-    SubtitleService().start_subtitle(room)
+    SubtitleService().start_subtitle(str(room.id))
 
     mock_livekit_client.agent_dispatch.create_dispatch.assert_called_once()
 

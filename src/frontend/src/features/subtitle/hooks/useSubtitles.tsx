@@ -5,9 +5,12 @@ import { useRoomData } from '@/features/rooms/livekit/hooks/useRoomData'
 import { useRoomContext } from '@livekit/components-react'
 import { useEffect } from 'react'
 import { RoomEvent } from 'livekit-client'
+import { breakoutStore } from '@/features/breakout/store'
 
 export const useSubtitles = () => {
   const layoutSnap = useSnapshot(layoutStore)
+  // In a breakout room, the transcription runs in that room.
+  const breakoutRoomId = useSnapshot(breakoutStore).room?.id
 
   const room = useRoomContext()
   const apiRoomData = useRoomData()
@@ -18,6 +21,7 @@ export const useSubtitles = () => {
       await startSubtitleRoom({
         id: apiRoomData?.livekit?.room,
         token: apiRoomData?.livekit?.token,
+        breakoutRoomId,
       })
     }
 

@@ -43,6 +43,7 @@ from rest_framework.settings import api_settings
 from core import analytics, enums, models, utils
 from core.api import throttling
 from core.api.filters import ListFileFilter
+from core.breakout import services as breakout_services
 from core.enums import MEDIA_STORAGE_URL_PATTERN
 from core.recording.enums import FileExtension
 from core.recording.event.authentication import RecordingProcessWebhookAuthentication
@@ -650,8 +651,23 @@ class RoomViewSet(
 
         room = self.get_object()
 
+        serializer = serializers.StartSubtitleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        room_name = str(room.id)
+        if breakout_room_id := serializer.validated_data.get("breakout_room_id"):
+            breakout_room = breakout_services.active_room(room, breakout_room_id)
+            # Only a member of that breakout room starts its transcription.
+            if not breakout_room.assignments.filter(
+                identity=request.auth.identity
+            ).exists():
+                return drf_response.Response(
+                    {"error": "Not assigned to this breakout room"},
+                    status=drf_status.HTTP_403_FORBIDDEN,
+                )
+            room_name = breakout_room.livekit_room_name
+
         try:
-            SubtitleService().start_subtitle(room)
+            SubtitleService().start_subtitle(room_name)
         except SubtitleException:
             return drf_response.Response(
                 {"error": f"Subtitles failed to start for room {room.slug}"},
@@ -679,6 +695,12 @@ class RoomViewSet(
 
         serializer = serializers.MuteParticipantSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        room_name = str(room.pk)
+        if breakout_room_id := serializer.validated_data.get("breakout_room_id"):
+            # Caller and target are both in that breakout room's media server room.
+            room_name = breakout_services.active_room(
+                room, breakout_room_id
+            ).livekit_room_name
 
         # TEMPORARY: a LiveKit token proves access was granted, not that the caller
         # joined. Cross-check identity against the live participant list until auth
@@ -687,7 +709,7 @@ class RoomViewSet(
         if caller_identity is not None:
             try:
                 ParticipantsManagement().check_if_in_meeting(
-                    room_name=str(room.pk),
+                    room_name=room_name,
                     identity=caller_identity,
                 )
             except (ParticipantNotFoundException, ParticipantsManagementException):
@@ -702,7 +724,7 @@ class RoomViewSet(
 
         try:
             ParticipantsManagement().mute(
-                room_name=str(room.pk),
+                room_name=room_name,
                 identity=str(serializer.validated_data["participant_identity"]),
                 track_sid=serializer.validated_data["track_sid"],
             )
@@ -780,21 +802,25 @@ class RoomViewSet(
 
         serializer = serializers.BaseParticipantsManagementSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        identity = str(serializer.validated_data["participant_identity"])
 
         try:
-            ParticipantsManagement().remove(
-                room_name=str(room.pk),
-                identity=str(serializer.validated_data["participant_identity"]),
-            )
+            ParticipantsManagement().remove(room_name=str(room.pk), identity=identity)
         except ParticipantNotFoundException:
-            return drf_response.Response(
-                {"error": "Participant not found"},
-                status=drf_status.HTTP_404_NOT_FOUND,
-            )
+            in_meeting = False
         except ParticipantsManagementException:
             return drf_response.Response(
                 {"error": "Failed to remove participant"},
                 status=drf_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        else:
+            in_meeting = True
+
+        # Their breakout room goes too, and with it the pass to join it.
+        if not breakout_services.remove_participant(room, identity) and not in_meeting:
+            return drf_response.Response(
+                {"error": "Participant not found"},
+                status=drf_status.HTTP_404_NOT_FOUND,
             )
 
         return drf_response.Response(

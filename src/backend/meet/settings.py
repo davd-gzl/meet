@@ -901,9 +901,10 @@ class Base(Configuration):
         environ_name="LOBBY_NOTIFICATION_TYPE",
         environ_prefix=None,
     )
-    LOBBY_COOKIE_NAME = values.Value(
-        "lobbyParticipantId",
-        environ_name="LOBBY_COOKIE_NAME",
+    # Not the previous release's cookie, which it reads verbatim as an identity.
+    LOBBY_GUEST_COOKIE_NAME = values.Value(
+        "lobbyGuestCapability",
+        environ_name="LOBBY_GUEST_COOKIE_NAME",
         environ_prefix=None,
     )
 
