@@ -3,7 +3,10 @@ Test rooms API endpoints in the Meet core app: update.
 """
 
 import random
+from datetime import timedelta
 from unittest.mock import patch
+
+from django.utils import timezone
 
 import pytest
 from rest_framework.test import APIClient
@@ -225,6 +228,39 @@ def test_api_rooms_update_administrators_name_only(mock_update_metadata):
     mock_update_metadata.assert_not_called()
 
 
+@pytest.mark.parametrize("method", ["put", "patch"])
+def test_api_rooms_update_last_started_at_ignored(method):
+    """Should ignore a "last_started_at" value sent by a client.
+
+    The field is only ever written by the LiveKit "room_started" webhook: it is not
+    declared on the serializer and is "editable=False" on the model. A client must
+    not be able to keep a room alive by postponing its last start date.
+    """
+    user = UserFactory()
+    last_started_at = timezone.now() - timedelta(days=30)
+    room = RoomFactory(
+        name="Old name",
+        last_started_at=last_started_at,
+        users=[(user, random.choice(["administrator", "owner"]))],
+    )
+    client = APIClient()
+    client.force_login(user)
+
+    response = getattr(client, method)(
+        f"/api/v1.0/rooms/{room.id!s}/",
+        {"name": "New name", "last_started_at": timezone.now().isoformat()},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert "last_started_at" not in response.json()
+
+    room.refresh_from_db()
+    # The rest of the payload was applied, so the request was not simply rejected
+    assert room.name == "New name"
+    assert room.last_started_at == last_started_at
+
+
 @pytest.mark.parametrize(
     "configuration",
     [
@@ -381,38 +417,11 @@ def test_api_rooms_update_administrators_of_another():
     assert other_room.slug == "old-name"
 
 
-@patch.object(RoomManagement, "update_metadata", side_effect=RoomNotFoundException)
-def test_api_rooms_update_livekit_room_not_found(mock_update_metadata):
-    """Should not fail the API request when the LiveKit room does not exist yet."""
-    user = UserFactory()
-    room = RoomFactory(
-        users=[(user, random.choice(["administrator", "owner"]))],
-        configuration={},
-    )
-    client = APIClient()
-    client.force_login(user)
-
-    response = client.patch(
-        f"/api/v1.0/rooms/{room.id!s}/",
-        {"configuration": {"can_publish_sources": ["camera"]}},
-        format="json",
-    )
-    assert response.status_code == 200
-    room.refresh_from_db()
-    assert room.configuration == {"can_publish_sources": ["camera"]}
-
-    mock_update_metadata.assert_called_once_with(
-        room_name=str(room.id),
-        metadata={
-            "access_level": room.access_level,
-            "configuration": {"can_publish_sources": ["camera"]},
-        },
-    )
-
-
-@patch.object(RoomManagement, "update_metadata", side_effect=RoomManagementException)
-def test_api_rooms_update_livekit_sync_failure(mock_update_metadata):
+@pytest.mark.parametrize("exception", [RoomNotFoundException, RoomManagementException])
+@patch.object(RoomManagement, "update_metadata")
+def test_api_rooms_update_livekit_sync_failure(mock_update_metadata, exception):
     """Should not fail the API request when the LiveKit metadata sync fails."""
+    mock_update_metadata.side_effect = exception
     user = UserFactory()
     room = RoomFactory(
         users=[(user, random.choice(["administrator", "owner"]))],

@@ -27,6 +27,7 @@ from timezone_field import TimeZoneField
 
 from . import fields, utils
 from .recording.enums import FileExtension
+from .validators import sub_validator
 
 logger = getLogger(__name__)
 
@@ -57,6 +58,7 @@ class RecordingStatusChoices(models.TextChoices):
     STOPPED = "stopped", _("Stopped")
     SAVED = "saved", _("Saved")
     ABORTED = "aborted", _("Aborted")
+    FAILED = "failed", _("Failed")
     FAILED_TO_START = "failed_to_start", _("Failed to Start")
     FAILED_TO_STOP = "failed_to_stop", _("Failed to Stop")
     NOTIFICATION_SUCCEEDED = "notification_succeeded", _("Notification succeeded")
@@ -78,6 +80,7 @@ class RecordingStatusChoices(models.TextChoices):
             cls.STOPPED,
             cls.SAVED,
             cls.ABORTED,
+            cls.FAILED,
             cls.EXTERNAL_PROCESS_SUCCESSFUL,
             cls.EXTERNAL_PROCESS_FAILED,
             cls.FAILED_TO_START,
@@ -85,9 +88,15 @@ class RecordingStatusChoices(models.TextChoices):
         }
 
     @classmethod
-    def is_unsuccessful(cls, status):
-        """Determine if the recording status represents an unsuccessful state."""
-        return status in {cls.ABORTED, cls.FAILED_TO_START, cls.FAILED_TO_STOP}
+    def saved_statuses(cls):
+        """Return the statuses of a recording whose file users can access."""
+
+        return {
+            cls.NOTIFICATION_SUCCEEDED,
+            cls.SAVED,
+            cls.EXTERNAL_PROCESS_SUCCESSFUL,
+            cls.EXTERNAL_PROCESS_FAILED,
+        }
 
 
 class RecordingModeChoices(models.TextChoices):
@@ -145,19 +154,11 @@ class BaseModel(models.Model):
 class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
     """User model to work with OIDC only authentication."""
 
-    sub_validator = validators.RegexValidator(
-        regex=r"^[\w.@+-]+\Z",
-        message=_(
-            "Enter a valid sub. This value may contain only letters, "
-            "numbers, and @/./+/-/_ characters."
-        ),
-    )
-
     sub = models.CharField(
         _("sub"),
         help_text=_(
             "Optional for pending users; required upon account activation. "
-            "255 characters or fewer. Letters, numbers, and @/./+/-/_ characters only."
+            "255 characters or fewer. Printable ASCII characters only."
         ),
         max_length=255,
         unique=True,
@@ -436,6 +437,13 @@ class Room(Resource):
         verbose_name=_("Room PIN code"),
         help_text=_("Unique n-digit code that identifies this room in telephony mode."),
     )
+    last_started_at = models.DateTimeField(
+        verbose_name=_("last started at"),
+        help_text=_("date and time at which the room was last started"),
+        blank=True,
+        null=True,
+        editable=False,
+    )
 
     class Meta:
         db_table = "meet_room"
@@ -589,6 +597,7 @@ class Recording(BaseModel):
     4. NOTIFICATION_SUCCEEDED: External service has been notified of this recording
 
     Error States:
+    - FAILED: Egress failed mid-recording
     - FAILED_TO_START: Worker failed to initialize recording
     - FAILED_TO_STOP: Worker failed during stop operation
     - ABORTED: Recording was terminated before completion
@@ -691,12 +700,7 @@ class Recording(BaseModel):
     @property
     def is_saved(self) -> bool:
         """Check if the recording is in a saved state."""
-        return self.status in {
-            RecordingStatusChoices.NOTIFICATION_SUCCEEDED,
-            RecordingStatusChoices.SAVED,
-            RecordingStatusChoices.EXTERNAL_PROCESS_SUCCESSFUL,
-            RecordingStatusChoices.EXTERNAL_PROCESS_FAILED,
-        }
+        return self.status in RecordingStatusChoices.saved_statuses()
 
     @property
     def extension(self):

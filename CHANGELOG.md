@@ -10,6 +10,176 @@ and this project adheres to
 
 ### Changed
 
+- ⬆️(backend) update python dependencies
+- ⬆️(summary) update python dependencies
+- ⬆️(agents) update python dependencies
+
+### Fixed
+
+- ⚡️(frontend) disable posthog-js periodic feature flag reloads
+
+## [1.32.1] - 2026-09-25
+
+### Fixed
+
+- 🔒️(backend) fix CVE-2026-73228 and CVE-2026-73229 in drf
+- 🔒️(agent) fix CRITICAL CVE-2026-63072 / CVE-2026-63073 in libssl3t64
+
+## [1.32.0] - 2026-09-25
+
+### Added
+
+- ✨(backend) make the LiveKit default video codec configurable
+- ✨(backend) purge rooms inactive for a configurable period
+- 🔧(dev) add support for Bureautix workstations
+- ✨(frontend) add screen share zoom controls #1498
+- 🔨(makefile) add targets to list and download files stored in Garage
+
+### Changed
+
+- 🔥(backend) remove unused API viewset and permission helpers
+- 🔊(backend) pin the dockerflow logger level to WARNING
+- 🚑️(summary) serve health endpoints with the dockerflow router
+- ♻️(backend) serve the dockerflow views early in the middleware stack
+- 📈(frontend) include LiveKit SIDs in the connection analytics event
+- 🔇(backend) silence expected 401 warnings on /me
+- 🔇(backend) silence noisy request summary info logs
+- ⚡️(frontend) defer loading the Crisp script until idle
+- ⬆️(frontend) upgrade react-i18next from 17.0.10 to 17.0.12
+- ⬆️(frontend) upgrade posthog-js from 1.414.0 to 1.418.10
+- ⬆️(addons) upgrade i18next from 26.3.6 to 26.4.0
+- ⬆️(frontend) upgrade humanize-duration from 3.33.2 to 3.34.1
+- ⬆️(addons) upgrade i18next from 26.4.0 to 26.4.2
+- 🔖(helm) release chart 0.0.28
+- ♻️(backend) decouple recording event handling from LiveKit egress statuses
+- ♻️(agents) replace the minio client by boto3
+- 🔧(compose) replace MinIO by Garage for local development
+- 🔧(helm) point media services to Garage by default
+
+### Fixed
+
+- 🐛(helm) probe liveness on __lbheartbeat__ and readiness on __heartbeat__
+- 🐛(helm) render periodSeconds and failureThreshold on probes
+- 🐛(backend) report the app release to Sentry instead of "NA"
+- 🐛(frontend) play the waiting room notification sound on every arrival
+- 🐛(frontend) apply saved reception resolution when joining a meeting #1714
+- 🐛(backend) acknowledge unknown LiveKit webhook events instead of 422
+- 🔒️(backend) enforce display name setting on rename API
+- 🔒️(backend) reject inactive users in resource server backend
+- 🐛(frontend) fix file permissions in the Docker image
+- 🚸(frontend) inform user that recording waits until a track is published
+- 🔒(backend) upgrade base image to python:3.13.5-alpine3.24
+- 🐛(backend) handle failed and aborted egresses
+- 🩹(frontend) notify participants when a recording fails or is aborted
+- 🔒️(frontend) fix HIGH CVE-2026-93990 in libexpat
+
+## [1.31.0] - 2026-09-08
+
+### Added
+
+- ✨(frontend) add 1080p sending resolution option #1660
+- ✨(backend) add Traefik support via configurable media-auth url header #1649
+- ✨(backend) update a room's attributes from the external API
+- 🔊(backend) log request duration in Gunicorn workers
+- 📈(frontend) track missing lobby participant on accept/reject
+- ✨(backend) sort waiting participants by their arrival time
+
+### Changed
+
+- ⬆️(dev) pin LiveKit server to v1.13.6
+- 🔒(frontend) upgrade base image to 1.30.4-alpine3.24
+
+### Fixed
+
+- 🐛(backend) allow any printable ASCII characters in user sub field #1673
+- 🐛(frontend) keep the sending resolution picked while the camera is off #1667
+- 🐛(frontend) restore automatic lower-hand on speaking
+- 🐛(frontend) center Avatar initials with a font-aware cap-height ratio
+- 🐛(frontend) keep feedback buttons on one line for fr/es/en
+- ⚡️(frontend) increase lobby polling interval on both sides
+- ⚡️(frontend) add trailing slash on the /me endpoint call
+- ⚡️(backend) refactor lobby storage to bound key lookups per room
+- ⚡️(backend) refactor presence cache to bound key lookups per room
+- 💄(frontend) position the login hint dynamically next to the button
+
+## [1.30.0] - 2026-09-01
+
+### Added
+
+- ✨(agent) support Voxtral realtime as inference engine
+- 🌐(i18n) add Spanish language support
+- ✨(frontend) expose publish permissions on the media state element #1661
+
+### Changed
+
+- 🔥(backend) remove the S3 storage-event webhook for recordings
+- ♻️(backend) always finalize recordings using the LiveKit egress_ended webhook
+- ⬆️(frontend) upgrade posthog-js from 1.409.5 to 1.414.0
+- ⬆️(frontend) upgrade @fontsource-variable/lexend from 5.2.11 to 5.3.0
+- ⬆️(frontend) upgrade @fontsource/opendyslexic from 5.2.5 to 5.3.0
+- ⬆️(addons) upgrade core-js from 3.49.0 to 3.50.0
+- ♻️(backend) factorize s3 client creation in utils
+- ♿️(frontend) close side panel with Escape key #1507
+
+### Fixed
+
+- 🐛(frontend) fix chat text-area bug
+
+## [1.29.0] - 2026-08-25
+
+### Added
+
+- ✨(any) let any authenticated user manage the lobby on trusted rooms
+
+### Changed
+
+- 📱(frontend) collapse mobile control bar items on narrow viewports
+- 📱(frontend) stack idle modal buttons in a column on mobile
+- 📱(frontend) improve feedback screen responsiveness on mobile
+- ⬆️(frontend) upgrade @fontsource-variable/atkinson-hyperlegible-next
+- ⬆️(frontend) upgrade i18next-resources-to-backend from 1.2.1 to 1.2.3
+- ⬆️(frontend) upgrade @tanstack/react-query from 5.101.1 to 5.101.4
+- ⬆️(frontend) upgrade @pandacss/preset-panda from 1.11.3 to 1.12.0
+- ⬆️(frontend) upgrade posthog-js from 1.404.1 to 1.409.5
+- ⚡️(frontend) apply frugal constraint to the active meeting audio track
+- ⚡️(backend) replace blocking Redis KEYS with cursor-based SCAN
+- ✨(summary) add hostname to analytics properties
+
+## [1.28.0] - 2026-08-24
+
+### Added
+
+- 📈(frontend) track errors when starting or stopping a recording
+- 🚸(frontend) explain camera-in-use failures on the join screen
+
+### Changed
+
+- ✨(backend) accept form-urlencoded on the user token endpoint
+- ✨(summary) configurable s3 region
+- ⬆️(frontend) upgrade i18next and react-i18next patch versions
+- ⬆️(frontend) upgrade posthog-js from 1.395.0 to 1.404.1
+- ⬆️(frontend) upgrade livekit-client and @livekit/components-react
+- 💄(frontend) increase the blur intensity
+
+### Fixed
+
+- 📝(docs) fix minor typos in comments and docstrings
+- ⬆️(backend) bump sqlparse from 0.5.5 to 0.6.0
+- ⬆️(mail) bump @html-to/text-cli from 0.6.0 to 0.6.1
+- 🐛(frontend) treat client-initiated connect aborts as events
+- 🐛(frontend) use state instead of a ref for MoreControls container
+- 🐛(frontend) stop init_virtual_background from firing on blur updates
+- 🐛(frontend) hoist mute confirmation dialog to VideoConference level
+- 🐛(frontend) fix joined notification tile no longer rendering properly
+- 🐛(frontend) handle device-in-use errors on Chrome / Windows 10
+- 🐛(frontend) handle Firefox/Windows AbortError on device start
+- 🐛(frontend) treat "Timeout starting source" AbortError as device-in-use
+- 🔇(frontend) suppress leaked WebSocket error events from livekit-client
+
+## [1.27.0] - 2026-08-14
+
+### Changed
+
 - 🔥(frontend) drop unused vendored ConnectionObserver
 - 🐛(frontend) vendor formatChatMessageLinks and trim surrounding newlines
 
@@ -21,6 +191,9 @@ and this project adheres to
 - 🐛(frontend) implement hysteresis band for the control bar layout
 - 🐛(frontend) fix toolbar ResizeObserver loop and alignment drift
 - 🐛(analytics) filter benign ResizeObserver loop error in Sentry/PostHog
+- 🐛(frontend) stop reporting screen-share denials as errors
+- 🐛(frontend) generalize screen-share error modal beyond macOS
+- 📈(frontend) stop double-reporting media device failures
 
 ## [1.26.0] - 2026-08-12
 

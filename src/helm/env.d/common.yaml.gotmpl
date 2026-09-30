@@ -24,10 +24,11 @@ _summaryEnvVars: &summaryEnvVars
   APP_NAME: summary-microservice
   APP_API_TOKEN: password
   AWS_STORAGE_BUCKET_NAME: meet-media-storage
-  AWS_S3_ENDPOINT_URL: http://minio.meet.svc.cluster.local:9000/
-  AWS_S3_ACCESS_KEY_ID: meet
-  AWS_S3_SECRET_ACCESS_KEY: password
+  AWS_S3_ENDPOINT_URL: http://garage.meet.svc.cluster.local:9000/
+  AWS_S3_ACCESS_KEY_ID: meet-access-key
+  AWS_S3_SECRET_ACCESS_KEY: meet-secret-access-key
   AWS_S3_SECURE_ACCESS: False
+  AWS_S3_REGION_NAME: local
   AUTHORIZED_TENANTS: >
     [
       {
@@ -150,6 +151,7 @@ backend:
     # Frontend
     LIVEKIT_FORCE_WSS_PROTOCOL: True
     LIVEKIT_ENABLE_FIREFOX_PROXY_WORKAROUND: True
+    LIVEKIT_DEFAULT_VIDEO_CODEC: vp9
     FRONTEND_IDLE_DISCONNECT_WARNING_DELAY: 9000
     FRONTEND_SILENCE_LIVEKIT_DEBUG: False
     FRONTEND_SUPPORT: "{'id': '58ea6697-8eba-4492-bc59-ad6562585041', 'help_article_transcript': 'https://lasuite.crisp.help/fr/article/visio-transcript-1sjq43x', 'help_article_recording': 'https://lasuite.crisp.help/fr/article/visio-enregistrement-wgc8o0', 'help_article_more_tools': 'https://lasuite.crisp.help/fr/article/visio-tools-bvxj23'}"
@@ -160,9 +162,9 @@ backend:
     FRONTEND_TRANSCRIPTION_DESTINATION: "https://docs.numerique.gouv.fr"
     FRONTEND_IS_SILENT_LOGIN_ENABLED: False
     # S3 Storage
-    AWS_S3_ENDPOINT_URL: http://minio.meet.svc.cluster.local:9000
-    AWS_S3_ACCESS_KEY_ID: meet
-    AWS_S3_SECRET_ACCESS_KEY: password
+    AWS_S3_ENDPOINT_URL: http://garage.meet.svc.cluster.local:9000
+    AWS_S3_ACCESS_KEY_ID: meet-access-key
+    AWS_S3_SECRET_ACCESS_KEY: meet-secret-access-key
     AWS_STORAGE_BUCKET_NAME: meet-media-storage
     # Telephony
     ROOM_TELEPHONY_ENABLED: True
@@ -179,15 +181,13 @@ backend:
     # Custom Background
     AWS_S3_REGION_NAME: local
     AWS_S3_SIGNATURE_VERSION: s3v4
-    AWS_S3_DOMAIN_REPLACE: https://minio.127.0.0.1.nip.io
+    AWS_S3_DOMAIN_REPLACE: https://garage.127.0.0.1.nip.io
     MEDIA_BASE_URL: https://meet.127.0.0.1.nip.io
     FILE_UPLOAD_ENABLED: True
     CELERY_ENABLED: True
     CELERY_BROKER_URL: redis://default:pass@redis-master:6379/1
     # Recording & Transcription
     RECORDING_ENABLE: True
-    RECORDING_STORAGE_EVENT_ENABLE: True
-    RECORDING_STORAGE_EVENT_TOKEN: password
     SUMMARY_SERVICE_ENDPOINT: http://meet-summary:80/api/v2/async-jobs/transcribe/
     SUMMARY_SERVICE_API_TOKEN: password
     SUMMARY_SERVICE_WEBHOOK_API_TOKEN: webhook-password
@@ -265,11 +265,11 @@ ingressMedia:
   annotations:
     nginx.ingress.kubernetes.io/auth-url: https://meet.127.0.0.1.nip.io/api/v1.0/recordings/media-auth/
     nginx.ingress.kubernetes.io/auth-response-headers: "Authorization, X-Amz-Date, X-Amz-Content-SHA256"
-    nginx.ingress.kubernetes.io/upstream-vhost: minio.meet.svc.cluster.local:9000
+    nginx.ingress.kubernetes.io/upstream-vhost: garage.meet.svc.cluster.local:9000
     nginx.ingress.kubernetes.io/rewrite-target: /meet-media-storage/$1
 
 serviceMedia:
-  host: minio.meet.svc.cluster.local
+  host: garage.meet.svc.cluster.local
   port: 9000
 
 # ---- Extra ingress/service for background file uploads ------------
@@ -281,11 +281,11 @@ ingressMediaFiles:
   annotations:
     nginx.ingress.kubernetes.io/auth-url: https://meet.127.0.0.1.nip.io/api/v1.0/files/media-auth/
     nginx.ingress.kubernetes.io/auth-response-headers: "Authorization, X-Amz-Date, X-Amz-Content-SHA256"
-    nginx.ingress.kubernetes.io/upstream-vhost: minio.meet.svc.cluster.local:9000
+    nginx.ingress.kubernetes.io/upstream-vhost: garage.meet.svc.cluster.local:9000
     nginx.ingress.kubernetes.io/rewrite-target: /meet-media-storage/files/$1
 
 serviceMediaFiles:
-  host: minio.meet.svc.cluster.local
+  host: garage.meet.svc.cluster.local
   port: 9000
 
 # ---- STT Orchestration Microservice Components --------------------
@@ -363,10 +363,11 @@ agentMetadata:
     {{- end }}
     {{- end }}
     ENABLE_SILERO_VAD: "false"
-    AWS_S3_ENDPOINT_URL: minio.meet.svc.cluster.local:9000
-    AWS_S3_ACCESS_KEY_ID: meet
-    AWS_S3_SECRET_ACCESS_KEY: password
+    AWS_S3_ENDPOINT_URL: garage.meet.svc.cluster.local:9000
+    AWS_S3_ACCESS_KEY_ID: meet-access-key
+    AWS_S3_SECRET_ACCESS_KEY: meet-secret-access-key
     AWS_S3_SECURE_ACCESS: False
+    AWS_S3_REGION_NAME: local
     AWS_STORAGE_BUCKET_NAME: meet-media-storage
     AWS_S3_OUTPUT_FOLDER: metadata
 

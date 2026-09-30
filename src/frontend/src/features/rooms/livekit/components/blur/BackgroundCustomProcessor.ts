@@ -44,7 +44,7 @@ export class BackgroundCustomProcessor implements BackgroundProcessorInterface {
   videoElement?: HTMLVideoElement
   videoElementLoaded?: boolean
 
-  // Canvas containg the video processing result, of which we extract as stream.
+  // Canvas containing the video processing result, of which we extract as stream.
   outputCanvas?: HTMLCanvasElement
   outputCanvasCtx?: CanvasRenderingContext2D
 
@@ -55,7 +55,7 @@ export class BackgroundCustomProcessor implements BackgroundProcessorInterface {
   segmentationMaskCanvas?: HTMLCanvasElement
   segmentationMaskCanvasCtx?: CanvasRenderingContext2D
 
-  // Mask containg the inference result.
+  // Mask containing the inference result.
   segmentationMask?: ImageData
 
   // The resized image of the video source.
@@ -105,9 +105,7 @@ export class BackgroundCustomProcessor implements BackgroundProcessorInterface {
 
   _initVirtualBackgroundImage() {
     if (this.options.type !== 'virtual') {
-      throw new Error(
-        'Virtual background is only supported for virtual background'
-      )
+      return
     }
 
     const needsUpdate =
