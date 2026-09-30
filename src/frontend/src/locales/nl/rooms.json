@@ -854,7 +854,9 @@
       "currentRoom": "Je bent in {{room}}",
       "moving": "Naar {{room}}…",
       "returning": "Terug naar de hoofdvergadering…",
-      "moveFailed": "Je kon niet naar je ruimte worden verplaatst"
+      "moveFailed": "Je kon niet naar je ruimte worden verplaatst",
+      "returnFailed": "Je kon niet terug naar de hoofdvergadering worden gebracht",
+      "rejoin": "Opnieuw deelnemen"
     }
   }
 }

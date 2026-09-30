@@ -1,5 +1,6 @@
 import { type ApiRoom } from './ApiRoom'
 import { fetchApi } from '@/api/fetchApi'
+import { MOVABLE_QUERY } from '@/features/breakout/api'
 
 export const fetchRoom = ({
   roomId,
@@ -8,7 +9,7 @@ export const fetchRoom = ({
   roomId: string
   username?: string
 }) => {
-  const query = username ? `?username=${encodeURIComponent(username)}` : ''
+  const query = username ? `&username=${encodeURIComponent(username)}` : ''
 
-  return fetchApi<ApiRoom>(`/rooms/${roomId}/${query}`)
+  return fetchApi<ApiRoom>(`/rooms/${roomId}/?${MOVABLE_QUERY}${query}`)
 }

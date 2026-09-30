@@ -281,6 +281,7 @@ def test_api_rooms_retrieve_authenticated_public(mock_token):
         sources=["camera"],
         role=None,
         participant_id=None,
+        attributes={},
     )
 
 
@@ -332,6 +333,7 @@ def test_api_rooms_retrieve_authenticated_trusted(mock_token):
         sources=None,
         role=None,
         participant_id=None,
+        attributes={},
     )
 
 
@@ -418,6 +420,7 @@ def test_api_rooms_retrieve_members(mock_token, django_assert_num_queries, setti
         sources=["camera"],
         role=str(RoleChoices.MEMBER),
         participant_id=None,
+        attributes={},
     )
 
 
@@ -514,6 +517,7 @@ def test_api_rooms_retrieve_administrators(
         sources=None,
         role=str(user_access.role),
         participant_id=None,
+        attributes={},
     )
 
 

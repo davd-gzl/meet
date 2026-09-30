@@ -854,7 +854,9 @@
       "currentRoom": "Vous êtes dans {{room}}",
       "moving": "Déplacement vers {{room}}…",
       "returning": "Retour à la réunion principale…",
-      "moveFailed": "Impossible de vous déplacer vers votre salle"
+      "moveFailed": "Impossible de vous déplacer vers votre salle",
+      "returnFailed": "Impossible de vous ramener dans la réunion principale",
+      "rejoin": "Rejoindre"
     }
   }
 }

@@ -1,5 +1,6 @@
 import { fetchApi } from '@/api/fetchApi'
 import type { ApiLiveKit } from '@/features/rooms/api/ApiRoom'
+import { MOVABLE_QUERY } from '@/features/breakout/api'
 
 export interface RequestEntryParams {
   roomId: string
@@ -23,10 +24,13 @@ export const requestEntry = async ({
   roomId,
   username = '',
 }: RequestEntryParams) => {
-  return fetchApi<ApiRequestEntry>(`/rooms/${roomId}/request-entry/`, {
-    method: 'POST',
-    body: JSON.stringify({
-      username,
-    }),
-  })
+  return fetchApi<ApiRequestEntry>(
+    `/rooms/${roomId}/request-entry/?${MOVABLE_QUERY}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        username,
+      }),
+    }
+  )
 }

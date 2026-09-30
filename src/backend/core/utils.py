@@ -14,7 +14,7 @@ import secrets
 import string
 from datetime import timedelta
 from functools import lru_cache
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import uuid4
 
 from django.conf import settings
@@ -69,6 +69,7 @@ def generate_token(  # noqa: PLR0917
     role: Optional[str] = None,
     participant_id: Optional[str] = None,
     ttl: Optional[timedelta] = None,
+    attributes: Optional[Dict[str, str]] = None,
 ) -> str:
     """Generate a LiveKit access token for a user in a specific room.
 
@@ -85,6 +86,7 @@ def generate_token(  # noqa: PLR0917
         participant_id (Optional[str]): Stable identifier for anonymous users;
                          used as identity when user.is_anonymous.
         ttl (Optional[timedelta]): Token validity duration. Defaults to LiveKit SDK default.
+        attributes (Optional[Dict[str, str]]): More participant attributes to carry.
 
     Returns:
         str: The LiveKit JWT access token.
@@ -135,6 +137,7 @@ def generate_token(  # noqa: PLR0917
                 "color": color,
                 "room_role": role,
                 "is_authenticated": "true" if user.is_authenticated else "false",
+                **(attributes or {}),
             }
         )
     )
@@ -152,6 +155,7 @@ def generate_livekit_config(  # noqa: PLR0917
     color: Optional[str] = None,
     configuration: Optional[dict] = None,
     participant_id: Optional[str] = None,
+    attributes: Optional[Dict[str, str]] = None,
 ) -> dict:
     """Generate LiveKit configuration for room access.
 
@@ -164,6 +168,7 @@ def generate_livekit_config(  # noqa: PLR0917
         configuration (Optional[dict]): Room configuration dict that can override default settings.
         participant_id (Optional[str]): Stable identifier for anonymous users;
                          used as identity when user.is_anonymous.
+        attributes (Optional[Dict[str, str]]): More participant attributes to carry.
 
     Returns:
         dict: LiveKit configuration with URL, room and access token
@@ -184,6 +189,7 @@ def generate_livekit_config(  # noqa: PLR0917
             sources=sources,
             role=role,
             participant_id=participant_id,
+            attributes=attributes,
         ),
     }
 

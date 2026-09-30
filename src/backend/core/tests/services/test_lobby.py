@@ -197,6 +197,8 @@ def test_get_or_create_participant_id_new(lobby_service):
         signing.dumps("capability", salt="another-salt"),
         LobbyService.sign_guest_capability("capability")[:-1],
     ],
+    # The signed values carry a timestamp, so they cannot name the cases.
+    ids=["bare-uuid", "other-salt", "bad-signature"],
 )
 def test_get_or_create_participant_id_refuses_unsigned_cookie(lobby_service, cookie):
     """A cookie the server did not sign never selects an identity."""
@@ -266,6 +268,17 @@ def test_prepare_response_new_cookie(lobby_service):
     assert cookie["samesite"] == "Lax"
     assert not cookie["max-age"]  # a session cookie
     assert response["Cache-Control"] == "no-store"
+
+
+def test_prepare_response_leaves_the_previous_cookie_alone(lobby_service):
+    """Never the cookie the previous release reads verbatim as an identity."""
+    request = guest_request()
+    lobby_service.get_or_create_participant_id(request, uuid.uuid4())
+    response = HttpResponse()
+
+    lobby_service.prepare_response(response, request)
+
+    assert list(response.cookies) == ["lobbyGuest"]
 
 
 def test_can_bypass_lobby_public_room(lobby_service):
@@ -363,6 +376,7 @@ def test_request_entry_public_room(
         configuration=room.configuration,
         participant_id="test-participant-id",
         role=None,
+        attributes={},
     )
 
     lobby_service._get_participant.assert_called_once_with(room.id, participant_id)
@@ -402,6 +416,7 @@ def test_request_entry_trusted_room(
         configuration=room.configuration,
         participant_id="test-participant-id",
         role=None,
+        attributes={},
     )
 
     lobby_service._get_participant.assert_called_once_with(room.id, participant_id)
@@ -502,6 +517,7 @@ def test_request_entry_accepted_participant(
         configuration=room.configuration,
         participant_id="test-participant-id",
         role=None,
+        attributes={},
     )
     lobby_service._get_participant.assert_called_once_with(room.id, participant_id)
 
@@ -543,6 +559,7 @@ def test_request_entry_participant_with_role(
         configuration=room.configuration,
         participant_id="test-participant-id",
         role="administrator",
+        attributes={},
     )
     lobby_service._get_participant.assert_called_once_with(room.id, participant_id)
 
