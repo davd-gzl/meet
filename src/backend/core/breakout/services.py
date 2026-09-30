@@ -11,6 +11,7 @@ from uuid import uuid4
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -272,3 +273,13 @@ def remove_participant(room, identity):
     session.assignments.filter(identity=identity).delete()
     names = list(session.rooms.values_list("livekit_room_name", flat=True))
     return _run(_remove_from_rooms, names, identity)
+
+
+def active_room(room, breakout_room_id):
+    """A breakout room of the meeting's active split, or 404."""
+    return get_object_or_404(
+        models.BreakoutRoom,
+        pk=breakout_room_id,
+        session__room=room,
+        session__status=models.BreakoutSessionStatusChoices.ACTIVE,
+    )

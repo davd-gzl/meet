@@ -20,8 +20,8 @@ class SubtitleService:
     """Service for managing subtitle agents in LiveKit rooms."""
 
     @async_to_sync
-    async def start_subtitle(self, room):
-        """Start subtitle agent for the specified room."""
+    async def start_subtitle(self, room_name: str):
+        """Start subtitle agent in the specified LiveKit room."""
 
         lkapi = utils.create_livekit_client()
 
@@ -30,11 +30,11 @@ class SubtitleService:
             # No error is raised if agent already exists
             await lkapi.agent_dispatch.create_dispatch(
                 CreateAgentDispatchRequest(
-                    agent_name=settings.ROOM_SUBTITLE_AGENT_NAME, room=str(room.id)
+                    agent_name=settings.ROOM_SUBTITLE_AGENT_NAME, room=room_name
                 )
             )
         except Exception as e:
-            logger.exception("Failed to create agent dispatch for room %s", room.id)
+            logger.exception("Failed to create agent dispatch for room %s", room_name)
             raise SubtitleException("Failed to create subtitle agent") from e
 
         finally:

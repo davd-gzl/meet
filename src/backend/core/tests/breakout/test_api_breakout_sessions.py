@@ -9,15 +9,17 @@ import time
 from unittest import mock
 
 from django.conf import settings
+from django.contrib.auth.models import AnonymousUser
 from django.db import IntegrityError
 
 import jwt
 import pytest
 from asgiref.sync import sync_to_async
 from livekit.api import TwirpError
+from livekit.protocol.models import ParticipantInfo
 from rest_framework.test import APIClient
 
-from core import models
+from core import models, utils
 from core.breakout import services
 from core.factories import RoomFactory, UserFactory, UserResourceAccessFactory
 from core.services import room_management
@@ -689,6 +691,121 @@ def test_api_breakout_sessions_remove_participant_retries(livekit, owner_room):
     assert remove(room, host, "alice").status_code == 503
     assert not session.assignments.exists()
     assert remove(room, host, "alice").status_code == 200
+
+
+# Muting and subtitles inside a breakout room
+
+
+def pass_for(room, identity):
+    """A main-meeting pass for identity, as a browser in a breakout room holds it."""
+    return utils.generate_token(str(room.id), AnonymousUser(), participant_id=identity)
+
+
+def mute(room, token, breakout_room_id):
+    """Mute bob's microphone, addressing a breakout room."""
+    return APIClient().post(
+        f"/api/v1.0/rooms/{room.id!s}/mute-participant/",
+        {
+            "participant_identity": "bob",
+            "track_sid": "TR_mic",
+            "breakout_room_id": str(breakout_room_id),
+        },
+        format="json",
+        HTTP_AUTHORIZATION=f"Bearer {token}",
+    )
+
+
+def test_api_breakout_sessions_mute_in_breakout_room(livekit):
+    """The caller's presence is checked, and the track muted, in their breakout room."""
+    room = RoomFactory()
+    session = make_session(room, ["alice", "bob"])
+    own = session.rooms.get()
+    livekit.room.get_participant = mock.AsyncMock(
+        return_value=ParticipantInfo(
+            identity="alice", state=ParticipantInfo.State.ACTIVE
+        )
+    )
+    livekit.room.mute_published_track = mock.AsyncMock()
+
+    response = mute(room, pass_for(room, "alice"), own.id)
+
+    assert response.status_code == 200
+    assert livekit.room.get_participant.await_args.args[0].room == own.livekit_room_name
+    muted = livekit.room.mute_published_track.await_args.args[0]
+    assert (muted.room, muted.identity) == (own.livekit_room_name, "bob")
+
+
+@pytest.mark.parametrize("which", ["closing", "other meeting"])
+def test_api_breakout_sessions_mute_outside_active_split(livekit, which):
+    """A breakout room of a closing split or of another meeting is not found."""
+    room = RoomFactory()
+    other = room if which == "closing" else RoomFactory()
+    session = make_session(other, ["alice", "bob"])
+    if which == "closing":
+        models.BreakoutSession.objects.update(status=CLOSING)
+    livekit.room.get_participant = mock.AsyncMock(
+        return_value=ParticipantInfo(
+            identity="alice", state=ParticipantInfo.State.ACTIVE
+        )
+    )
+    livekit.room.mute_published_track = mock.AsyncMock()
+
+    response = mute(room, pass_for(room, "alice"), session.rooms.get().id)
+
+    assert response.status_code == 404
+    livekit.room.mute_published_track.assert_not_awaited()
+
+
+@pytest.mark.parametrize("status", ["active", "closing"])
+def test_api_breakout_sessions_raise_hand_in_breakout_room(livekit, status):
+    """A hand goes up in the caller's breakout room, and only while the split is active."""
+    room = RoomFactory()
+    session = make_session(room, ["alice"])
+    own = session.rooms.get()
+    if status == "closing":
+        models.BreakoutSession.objects.update(status=CLOSING)
+    livekit.room.update_participant = mock.AsyncMock()
+
+    response = APIClient().post(
+        f"/api/v1.0/rooms/{room.id!s}/toggle-hand/",
+        {"raised": True, "breakout_room_id": str(own.id)},
+        format="json",
+        HTTP_AUTHORIZATION=f"Bearer {pass_for(room, 'alice')}",
+    )
+
+    if status == "closing":
+        assert response.status_code == 404
+        livekit.room.update_participant.assert_not_awaited()
+        return
+    assert response.status_code == 200
+    update = livekit.room.update_participant.await_args.args[0]
+    assert (update.room, update.identity) == (own.livekit_room_name, "alice")
+    assert update.attributes["handRaisedAt"]
+
+
+def test_api_breakout_sessions_start_subtitle_in_breakout_room(livekit, settings):
+    """Subtitles start in the caller's breakout room, and only a member of it starts them."""
+    settings.ROOM_SUBTITLE_ENABLED = True
+    room = RoomFactory()
+    session = make_session(room, ["alice"], ["bob"])
+    own = session.rooms.get(name="Room 1")
+    livekit.agent_dispatch.create_dispatch = mock.AsyncMock()
+
+    def start(identity):
+        return APIClient().post(
+            f"/api/v1.0/rooms/{room.id!s}/start-subtitle/",
+            {"breakout_room_id": str(own.id)},
+            format="json",
+            HTTP_AUTHORIZATION=f"Bearer {pass_for(room, identity)}",
+        )
+
+    assert start("alice").status_code == 200
+    dispatch = livekit.agent_dispatch.create_dispatch.await_args.args[0]
+    assert dispatch.room == own.livekit_room_name
+
+    livekit.agent_dispatch.create_dispatch.reset_mock()
+    assert start("bob").status_code == 403
+    livekit.agent_dispatch.create_dispatch.assert_not_awaited()
 
 
 # Passes of browsers that can move

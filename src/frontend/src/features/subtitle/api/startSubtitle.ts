@@ -6,17 +6,22 @@ import type { ApiRoom } from '@/features/rooms/api/ApiRoom'
 export interface StartSubtitleParams {
   id: string
   token: string
+  breakoutRoomId?: string
 }
 
 const startSubtitle = ({
   id,
   token,
+  breakoutRoomId,
 }: StartSubtitleParams): Promise<ApiRoom> => {
   return fetchApi(`rooms/${id}/start-subtitle/`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
     },
+    body: breakoutRoomId
+      ? JSON.stringify({ breakout_room_id: breakoutRoomId })
+      : undefined,
   })
 }
 

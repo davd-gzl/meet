@@ -12,7 +12,6 @@ import {
 import { useRegisterKeyboardShortcut } from '@/features/shortcuts/useRegisterKeyboardShortcut'
 import { type ButtonRecipeProps } from '@/primitives/buttonRecipe'
 import { ToggleButtonProps } from '@/primitives/ToggleButton'
-import { useIsInBreakoutRoom } from '@/features/breakout/hooks/useIsInBreakoutRoom'
 
 const SPEAKING_DETECTION_DELAY = 3000
 
@@ -30,7 +29,6 @@ export const HandToggle = ({
     participant: room.localParticipant,
   })
 
-  const isInBreakoutRoom = useIsInBreakoutRoom()
   const isSpeaking = useIsSpeaking(room.localParticipant)
   const speakingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [hasShownToast, setHasShownToast] = useState(false)
@@ -52,7 +50,6 @@ export const HandToggle = ({
   useRegisterKeyboardShortcut({
     id: 'raise-hand',
     handler: handleToggle,
-    isDisabled: isInBreakoutRoom,
   })
 
   useEffect(() => {
@@ -85,8 +82,6 @@ export const HandToggle = ({
       }
     }
   }, [])
-
-  if (isInBreakoutRoom) return null
 
   const tooltipLabel = isHandRaised ? 'lower' : 'raise'
 
