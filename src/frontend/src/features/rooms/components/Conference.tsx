@@ -207,7 +207,7 @@ export const Conference = ({
       reportError('livekit_room_error', e, {
         path: 'connect_publish',
       })
-      onBreakoutError()
+      onBreakoutError(e)
     },
     [onBreakoutError]
   )
@@ -253,8 +253,9 @@ export const Conference = ({
           key={breakout.attempt}
           token={breakout.token || data?.livekit?.token}
           connect={isConnectionWarmedUp}
-          audio={userConfig.audioEnabled}
+          audio={!breakout.pendingMedia && userConfig.audioEnabled}
           video={
+            !breakout.pendingMedia &&
             userConfig.videoEnabled && {
               processor: BackgroundProcessorFactory.fromProcessorConfig(
                 userConfig.processorConfig
@@ -267,7 +268,7 @@ export const Conference = ({
           })}
           onError={onError}
           onConnected={async () => {
-            if (breakout.onConnected()) return
+            if (await breakout.onConnected()) return
             if (!apiConfig) return
             if (
               userPreferencesSnap.is_auto_mute_large_room_enabled &&
@@ -317,6 +318,7 @@ export const Conference = ({
             <BreakoutParticipant
               mainRoomId={data.id}
               connect={breakout.connect}
+              onRejoin={breakout.rejoin}
             />
           )}
           <VideoConference />

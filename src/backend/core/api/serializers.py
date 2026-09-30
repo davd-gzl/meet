@@ -20,6 +20,7 @@ from rest_framework.exceptions import PermissionDenied
 from timezone_field.rest_framework import TimeZoneSerializerField
 
 from core import models, utils
+from core.breakout import services as breakout_services
 from core.services.lobby import LobbyService
 
 logger = logging.getLogger(__name__)
@@ -210,6 +211,7 @@ class RoomSerializer(serializers.ModelSerializer):
                 configuration=output["configuration"],
                 role=role,
                 participant_id=participant_id,
+                attributes=breakout_services.client_attributes(request),
             )
         else:
             del output["pin_code"]

@@ -43,6 +43,7 @@ from rest_framework.settings import api_settings
 from core import analytics, enums, models, utils
 from core.api import throttling
 from core.api.filters import ListFileFilter
+from core.breakout import services as breakout_services
 from core.enums import MEDIA_STORAGE_URL_PATTERN
 from core.recording.enums import FileExtension
 from core.recording.event.authentication import RecordingProcessWebhookAuthentication
@@ -784,21 +785,25 @@ class RoomViewSet(
 
         serializer = serializers.BaseParticipantsManagementSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        identity = str(serializer.validated_data["participant_identity"])
 
         try:
-            ParticipantsManagement().remove(
-                room_name=str(room.pk),
-                identity=str(serializer.validated_data["participant_identity"]),
-            )
+            ParticipantsManagement().remove(room_name=str(room.pk), identity=identity)
         except ParticipantNotFoundException:
-            return drf_response.Response(
-                {"error": "Participant not found"},
-                status=drf_status.HTTP_404_NOT_FOUND,
-            )
+            in_meeting = False
         except ParticipantsManagementException:
             return drf_response.Response(
                 {"error": "Failed to remove participant"},
                 status=drf_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        else:
+            in_meeting = True
+
+        # Their breakout room goes too, and with it the pass to join it.
+        if not breakout_services.remove_participant(room, identity) and not in_meeting:
+            return drf_response.Response(
+                {"error": "Participant not found"},
+                status=drf_status.HTTP_404_NOT_FOUND,
             )
 
         return drf_response.Response(

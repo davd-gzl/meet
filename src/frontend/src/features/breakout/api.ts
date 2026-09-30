@@ -20,6 +20,9 @@ export type CreateBreakoutSession = {
   rooms: { name: string; participants: BreakoutPerson[] }[]
 }
 
+// Asks for a main-meeting pass telling the host this browser follows a move.
+export const MOVABLE_QUERY = 'breakout=1'
+
 const sessionsUrl = (roomId: string) => `/rooms/${roomId}/breakout-sessions/`
 
 export const breakoutSessionKey = (roomId?: string) => [
