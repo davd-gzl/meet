@@ -138,6 +138,11 @@ class LobbyService:
             self._redis().srem(self._get_index_key(room_id), *participant_ids)
 
     @classmethod
+    def sign_guest_capability(cls, capability: str) -> str:
+        """Return the guest cookie value that read_guest_capability accepts."""
+        return signing.dumps(capability, salt=cls.GUEST_COOKIE_SALT)
+
+    @classmethod
     def read_guest_capability(cls, request) -> Optional[str]:
         """Return the capability signed into the browser's cookie, if still valid.
 
@@ -184,7 +189,7 @@ class LobbyService:
         response["Cache-Control"] = "no-store"
         response.set_cookie(
             key=settings.LOBBY_COOKIE_NAME,
-            value=signing.dumps(capability, salt=cls.GUEST_COOKIE_SALT),
+            value=cls.sign_guest_capability(capability),
             max_age=settings.SESSION_COOKIE_AGE,
             httponly=True,
             secure=True,

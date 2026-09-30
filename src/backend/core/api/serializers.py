@@ -198,11 +198,11 @@ class RoomSerializer(serializers.ModelSerializer):
         if should_access_room:
             room_id = f"{instance.id!s}"
             username = request.query_params.get("username", None)
-            participant_id = None
-            if request.user.is_anonymous:
-                participant_id = LobbyService.get_or_create_participant_id(
-                    request, instance.id
-                )
+            participant_id = (
+                LobbyService.get_or_create_participant_id(request, instance.id)
+                if request.user.is_anonymous
+                else None
+            )
             output["livekit"] = utils.generate_livekit_config(
                 room_id=room_id,
                 user=request.user,

@@ -164,15 +164,10 @@ def guest_request(cookie=None):
     return request
 
 
-def signed_capability(capability):
-    """Return a lobby cookie value carrying the given capability."""
-    return signing.dumps(capability, salt=LobbyService.GUEST_COOKIE_SALT)
-
-
 def test_get_or_create_participant_id_from_cookie(lobby_service):
     """A valid cookie gives the same identity on every request."""
     room = RoomFactory()
-    cookie = signed_capability("capability")
+    cookie = LobbyService.sign_guest_capability("capability")
 
     participant_id = lobby_service.get_or_create_participant_id(
         guest_request(cookie), room.id
@@ -206,7 +201,7 @@ def test_get_or_create_participant_id_new(lobby_service):
     [
         "2f7f162f-e7d1-421b-90e7-02bfbfbf8def",
         signing.dumps("capability", salt="another-salt"),
-        signed_capability("capability")[:-1],
+        LobbyService.sign_guest_capability("capability")[:-1],
     ],
 )
 def test_get_or_create_participant_id_refuses_unsigned_cookie(lobby_service, cookie):
@@ -225,7 +220,7 @@ def test_get_or_create_participant_id_refuses_unsigned_cookie(lobby_service, coo
 def test_get_or_create_participant_id_differs_per_room(lobby_service):
     """One cookie gives a different identity in every room."""
     first_room, second_room = RoomFactory(), RoomFactory()
-    cookie = signed_capability("capability")
+    cookie = LobbyService.sign_guest_capability("capability")
 
     assert lobby_service.get_or_create_participant_id(
         guest_request(cookie), first_room.id

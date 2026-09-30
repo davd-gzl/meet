@@ -6,7 +6,6 @@ Test rooms API endpoints in the Meet core app: lobby functionality.
 import uuid
 from unittest import mock
 
-from django.core import signing
 from django.core.cache import cache
 from django.http import HttpRequest
 
@@ -316,7 +315,7 @@ def test_request_entry_waiting_participant_public_room(settings):
     settings.LOBBY_COOKIE_NAME = "mocked-cookie"
     settings.LOBBY_KEY_PREFIX = "mocked-cache-prefix"
 
-    guest_cookie = signing.dumps(str(uuid.uuid4()), salt=LobbyService.GUEST_COOKIE_SALT)
+    guest_cookie = LobbyService.sign_guest_capability(str(uuid.uuid4()))
     guest_request = HttpRequest()
     guest_request.COOKIES["mocked-cookie"] = guest_cookie
     participant_id = LobbyService.get_or_create_participant_id(guest_request, room.id)
@@ -807,11 +806,7 @@ def test_request_entry_throttling_anonymous_with_cookie(
     # A capability of its own, since the throttle cache is shared across tests
     capability = str(uuid.uuid4())
     client.cookies.load(
-        {
-            "mocked-cookie": signing.dumps(
-                capability, salt=LobbyService.GUEST_COOKIE_SALT
-            )
-        }
+        {"mocked-cookie": LobbyService.sign_guest_capability(capability)}
     )
 
     response = client.post(
