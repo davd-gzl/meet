@@ -7,7 +7,13 @@ import { ConnectionError, DisconnectReason } from 'livekit-client'
 import { Conference } from './Conference'
 import type { ApiRoom } from '../api/ApiRoom'
 import { ApiLobbyStatus, requestEntry } from '@/features/rooms/api/requestEntry'
-import { saveProcessorConfig } from '@/stores/userChoices'
+import {
+  saveAudioInputDeviceId,
+  saveAudioOutputDeviceId,
+  saveProcessorConfig,
+  saveVideoInputDeviceId,
+} from '@/stores/userChoices'
+import { reportError } from '@/features/analytics/telemetry'
 import { breakoutStore, resetBreakout } from '@/features/breakout/store'
 import { ProcessorType } from '@/features/rooms/livekit/components/blur'
 
@@ -31,13 +37,15 @@ vi.mock('livekit-client', async (orig) => {
   class FakeRoom {
     state = 'disconnected'
     numParticipants = 1
+    options: unknown
     localParticipant = {
       name: 'guest',
       setCameraEnabled: vi.fn(async () => undefined),
       setMicrophoneEnabled: vi.fn(async () => undefined),
     }
     prepareConnection = async () => undefined
-    constructor() {
+    constructor(options: unknown) {
+      this.options = options
       h.rooms.push(this)
     }
   }
@@ -105,7 +113,11 @@ vi.mock('@/features/rooms/api/requestEntry', async (orig) => ({
 
 const flush = () => act(async () => new Promise((r) => setTimeout(r, 0)))
 
-const mount = () =>
+// A pass the page could decode, minted under that name.
+const passNamed = (name: string) =>
+  ['e30', btoa(JSON.stringify({ name })).replace(/=+$/, ''), 'sig'].join('.')
+
+const mount = (token = 't') =>
   render(
     <QueryClientProvider client={new QueryClient()}>
       <Conference
@@ -114,7 +126,7 @@ const mount = () =>
           {
             id: 'main-id',
             slug: 'abc-defg-hij',
-            livekit: { url: 'https://lk.test', room: 'main-id', token: 't' },
+            livekit: { url: 'https://lk.test', room: 'main-id', token },
           } as ApiRoom
         }
       />
@@ -165,6 +177,56 @@ describe('Conference during a breakout move', () => {
     expect(h.rooms.length - roomsBefore).toBe(1)
   })
 
+  it('returns once through the lobby when it holds no pass', async () => {
+    mount('')
+    await flush()
+    await enterBreakout()
+    const { onDisconnected, onError } = h.props
+    await act(async () => {
+      onDisconnected(DisconnectReason.JOIN_FAILURE)
+      await Promise.resolve()
+      onError(ConnectionError.serverUnreachable('no signal connection'))
+    })
+    await flush()
+    expect(vi.mocked(requestEntry)).toHaveBeenCalledTimes(1)
+    expect(h.props.token).toBe('main-token-2')
+  })
+
+  it('ignores the refusal of a held pass a later move replaced', async () => {
+    mount()
+    await flush()
+    await enterBreakout()
+    await act(async () => h.props.onDisconnected(DisconnectReason.ROOM_DELETED))
+    await flush()
+    const staleOnError = h.props.onError
+    await enterBreakout()
+    await act(async () =>
+      staleOnError(ConnectionError.notAllowed('token expired', 401))
+    )
+    await flush()
+    expect(vi.mocked(requestEntry)).not.toHaveBeenCalled()
+    expect(h.props.token).toBe('breakout-token')
+  })
+
+  it.each([
+    ['unchanged', 'guest', false],
+    ['changed since page load', 'Ann', true],
+  ])(
+    'returns with the held pass only when the name is %s',
+    async (_case, heldName, asksEntry) => {
+      const held = passNamed(heldName)
+      mount(held)
+      await flush()
+      await enterBreakout()
+      await act(async () =>
+        h.props.onDisconnected(DisconnectReason.ROOM_DELETED)
+      )
+      await flush()
+      expect(vi.mocked(requestEntry).mock.calls.length).toBe(asksEntry ? 1 : 0)
+      expect(h.props.token).toBe(asksEntry ? 'main-token-2' : held)
+    }
+  )
+
   it('returns with the main-meeting pass it holds, asking nothing', async () => {
     vi.mocked(requestEntry).mockRejectedValue(new Error('lobby down'))
     mount()
@@ -209,11 +271,21 @@ describe('Conference during a breakout move', () => {
     expect(breakoutStore).toMatchObject({ returnFailed: true, target: null })
     expect(vi.mocked(requestEntry)).toHaveBeenCalledTimes(1)
 
+    // Rejoin asks the lobby again rather than the pass it refused.
+    vi.mocked(requestEntry).mockResolvedValue({
+      status: ApiLobbyStatus.ACCEPTED,
+      livekit: {
+        url: 'https://lk.test',
+        room: 'main-id',
+        token: 'main-token-2',
+      },
+    })
     const roomsBefore = h.rooms.length
     await act(async () => h.rejoin!())
     await flush()
     expect(breakoutStore).toMatchObject({ returnFailed: false, target: 'main' })
-    expect(h.props.token).toBe('t')
+    expect(vi.mocked(requestEntry)).toHaveBeenCalledTimes(2)
+    expect(h.props.token).toBe('main-token-2')
     expect(h.rooms.length - roomsBefore).toBe(1)
   })
 
@@ -230,5 +302,48 @@ describe('Conference during a breakout move', () => {
     expect(
       h.rooms.at(-1).localParticipant.setCameraEnabled
     ).toHaveBeenCalledWith(true, { processor: { effect: 'blur' } })
+  })
+
+  it('opens the breakout room on the devices picked during the call', async () => {
+    mount()
+    await flush()
+    await act(async () => {
+      saveAudioInputDeviceId('headset-mic')
+      saveVideoInputDeviceId('usb-cam')
+      saveAudioOutputDeviceId('headset-out')
+    })
+    await enterBreakout()
+    const { options } = h.rooms.at(-1)
+    expect(options.audioCaptureDefaults.deviceId).toBe('headset-mic')
+    expect(options.videoCaptureDefaults.deviceId).toBe('usb-cam')
+    expect(options.audioOutput.deviceId).toBe('headset-out')
+  })
+
+  it('reports a camera that fails to come back unless a device is to blame', async () => {
+    vi.mocked(reportError).mockClear()
+    mount()
+    await flush()
+    await enterBreakout()
+    const camera = h.rooms.at(-1).localParticipant.setCameraEnabled
+    const denied = Object.assign(new Error('denied'), {
+      name: 'NotAllowedError',
+    })
+    camera.mockRejectedValueOnce(denied)
+    await act(async () => {
+      await expect(h.props.onConnected()).resolves.toBeUndefined()
+    })
+    expect(vi.mocked(reportError)).not.toHaveBeenCalled()
+
+    const broken = new Error('boom')
+    camera.mockRejectedValueOnce(broken)
+    breakoutStore.pendingMedia = { camera: true, microphone: false }
+    await act(async () => {
+      await expect(h.props.onConnected()).resolves.toBeUndefined()
+    })
+    expect(vi.mocked(reportError)).toHaveBeenCalledWith(
+      'livekit_room_error',
+      broken,
+      { path: 'breakout_restore' }
+    )
   })
 })

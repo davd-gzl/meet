@@ -6,6 +6,8 @@ Test how the LiveKit webhook treats breakout rooms and their meeting.
 import uuid
 from unittest import mock
 
+from django.test import override_settings
+
 import pytest
 from livekit.api import TwirpError
 from rest_framework.test import APIClient
@@ -19,7 +21,7 @@ from core.services.livekit_events import (
     api,
 )
 from core.services.lobby import LobbyService
-from core.services.sip_management import SIPManagement
+from core.services.sip_management import SIPException, SIPManagement
 
 pytestmark = pytest.mark.django_db
 
@@ -36,11 +38,7 @@ def service(settings):
 
 
 @mock.patch.object(api.WebhookReceiver, "receive")
-@mock.patch.object(LiveKitEventsService, "_handle_room_finished")
-@mock.patch.object(LiveKitEventsService, "_handle_room_started")
-def test_receive_ignores_breakout_room(
-    mock_handle_room_started, mock_handle_room_finished, mock_receive, service
-):
+def test_receive_ignores_breakout_room(mock_receive, service):
     """A breakout room is no meeting: its events are acknowledged and ignored."""
     mock_request = mock.MagicMock()
     mock_request.headers = {"Authorization": "test_token"}
@@ -48,11 +46,14 @@ def test_receive_ignores_breakout_room(
     mock_data.room.name = f"breakout_{uuid.uuid4()}_0"
     mock_data.event = "room_started"
     mock_receive.return_value = mock_data
+    # receive() dispatches through the handlers bound at construction.
+    handlers = {"room_started": mock.Mock(), "room_finished": mock.Mock()}
 
-    service.receive(mock_request)
+    with mock.patch.dict(service._webhook_handlers, handlers):
+        service.receive(mock_request)
 
-    mock_handle_room_started.assert_not_called()
-    mock_handle_room_finished.assert_not_called()
+    for handler in handlers.values():
+        handler.assert_not_called()
 
 
 @pytest.fixture
@@ -141,3 +142,27 @@ def test_handle_room_finished_breakout_close_fails(
     session.refresh_from_db()
     assert session.status == BreakoutSessionStatusChoices.CLOSING
     mock_clear_cache.assert_called_once_with(room.id)
+
+
+@pytest.mark.parametrize("failing", ["sip", "lobby"])
+@override_settings(ROOM_TELEPHONY_ENABLED=True)
+@mock.patch.object(LobbyService, "clear_room_cache")
+@mock.patch.object(SIPManagement, "delete_dispatch_rule")
+def test_handle_room_finished_cleanup_fails_still_closes_breakout(
+    mock_delete_dispatch_rule, mock_clear_cache, livekit, service, failing
+):
+    """A failed dispatch rule delete or lobby clear still closes the split."""
+    if failing == "sip":
+        mock_delete_dispatch_rule.side_effect = SIPException("boom")
+    else:
+        mock_clear_cache.side_effect = RuntimeError("boom")
+    room = RoomFactory()
+    session = open_session(room)
+    mock_data = mock.MagicMock()
+    mock_data.room.name = str(room.id)
+
+    with pytest.raises(ActionFailedError):
+        service._handle_room_finished(mock_data)
+
+    session.refresh_from_db()
+    assert session.status == BreakoutSessionStatusChoices.CLOSED

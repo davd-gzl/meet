@@ -207,7 +207,7 @@ export const Conference = ({
       reportError('livekit_room_error', e, {
         path: 'connect_publish',
       })
-      onBreakoutError()
+      onBreakoutError(e)
     },
     [onBreakoutError]
   )

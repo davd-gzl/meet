@@ -9,8 +9,11 @@ import {
 } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ParticipantKind } from 'livekit-client'
+import { queryClient } from '@/api/queryClient'
+import { ApiError } from '@/api/ApiError'
 import { BreakoutSetup } from './BreakoutSetup'
 import { resetBreakout } from '../store'
+import { createBreakoutSession } from '../api'
 
 const h = vi.hoisted(() => ({ participants: [] as unknown[] }))
 
@@ -81,5 +84,22 @@ describe('BreakoutSetup', () => {
     await waitFor(() =>
       expect(screen.queryByText('setup.unassigned')).not.toBeNull()
     )
+  })
+
+  it('shows a refused Open and refetches the session it collided with', async () => {
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    vi.mocked(createBreakoutSession).mockRejectedValueOnce(
+      new ApiError(409, { detail: 'Already active.' })
+    )
+    h.participants = [guest]
+    renderSetup()
+    fireEvent.click(screen.getByRole('button', { name: 'setup.shuffle' }))
+    await screen.findByText('setup.allAssigned')
+    fireEvent.click(screen.getByRole('button', { name: 'setup.open' }))
+    await screen.findByRole('alert')
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['breakoutSession', 'room-1'],
+    })
+    invalidate.mockRestore()
   })
 })

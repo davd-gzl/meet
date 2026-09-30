@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MobileControlBar } from './MobileControlBar'
 import { breakoutStore, resetBreakout } from '@/features/breakout/store'
@@ -8,7 +8,11 @@ import { keyboardShortcutsStore } from '@/stores/keyboardShortcuts'
 import { getShortcutDescriptorById } from '@/features/shortcuts/catalog'
 import { formatShortcutKey } from '@/features/shortcuts/utils'
 
-const { none } = vi.hoisted(() => ({ none: () => null }))
+const { none, h } = vi.hoisted(() => ({
+  none: () => null,
+  // Widths useSize answers for the container, the bar and the collapsible row.
+  h: { sizes: [0, 0, 0], calls: 0 },
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -43,14 +47,14 @@ vi.mock('../../components/controls/Device/VideoDeviceControl', () => ({
   VideoDeviceControl: none,
 }))
 vi.mock('../../hooks/useResizeObserver', () => ({
-  useSize: () => ({ width: 0, height: 0 }),
+  useSize: () => ({ width: h.sizes[h.calls++ % 3], height: 0 }),
 }))
 vi.mock('./ResponsiveMenu', () => ({ ResponsiveMenu: none }))
 vi.mock('@/features/layout/components/ControlBarRegion', () => ({
   ControlBarRegion: (p: { children: ReactNode }) => <>{p.children}</>,
 }))
 vi.mock('@/features/reactions/components/ReactionsToggle', () => ({
-  ReactionsToggle: none,
+  ReactionsToggle: () => <span>reactions</span>,
   reactionShortcutHandler: vi.fn(),
 }))
 
@@ -62,6 +66,7 @@ afterEach(() => {
   cleanup()
   resetBreakout()
   keyboardShortcutsStore.shortcuts.clear()
+  Object.assign(h, { sizes: [0, 0, 0], calls: 0 })
 })
 
 describe('MobileControlBar', () => {
@@ -74,5 +79,13 @@ describe('MobileControlBar', () => {
     breakoutStore.room = { id: 'r1', name: 'Room 1' }
     render(<MobileControlBar />)
     expect(keyboardShortcutsStore.shortcuts.has(raiseHandKey)).toBe(false)
+  })
+
+  it('moves reactions out of a bar too narrow for them in a breakout room', () => {
+    breakoutStore.room = { id: 'r1', name: 'Room 1' }
+    // Reactions alone fill the 40px row, and 30px is left beside the rest.
+    h.sizes = [230, 240, 40]
+    render(<MobileControlBar />)
+    expect(screen.queryByText('reactions')).toBeNull()
   })
 })

@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  act,
   cleanup,
   fireEvent,
   render,
   screen,
   waitFor,
 } from '@testing-library/react'
-import { QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider, focusManager } from '@tanstack/react-query'
 import { queryClient } from '@/api/queryClient'
 import { ApiError } from '@/api/ApiError'
 import { BreakoutPanel } from './BreakoutPanel'
@@ -70,19 +71,82 @@ describe('BreakoutPanel', () => {
     ).not.toBeNull()
   })
 
-  it('shows nothing when the list fails, a session announced or not', async () => {
-    vi.mocked(fetchBreakoutSession).mockRejectedValue(
-      new ApiError(404, { detail: 'Not found.' })
-    )
+  it.each(['s1', null])(
+    'shows nothing when the list fails, with session %s announced',
+    async (announced) => {
+      vi.mocked(fetchBreakoutSession).mockRejectedValue(
+        new ApiError(404, { detail: 'Not found.' })
+      )
+      announce(announced)
+      render(ui())
+      await waitFor(() =>
+        expect(
+          queryClient.getQueryState(['breakoutSession', 'room-1'])?.status
+        ).toBe('error')
+      )
+      expect(screen.queryByRole('button', { name: 'active.close' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'setup.open' })).toBeNull()
+    }
+  )
+
+  it('keeps the session and a running close when the signal goes', async () => {
+    // Opened from the panel: the list answered no session first.
+    announce(null)
+    vi.mocked(fetchBreakoutSession).mockResolvedValueOnce(null)
+    const { rerender } = render(ui())
+    await screen.findByRole('button', { name: 'setup.open' })
     announce('s1')
-    render(ui())
-    await waitFor(() =>
-      expect(
-        queryClient.getQueryState(['breakoutSession', 'room-1', 's1'])?.status
-      ).toBe('error')
-    )
-    expect(screen.queryByRole('button', { name: 'active.close' })).toBeNull()
+    vi.mocked(fetchBreakoutSession).mockResolvedValueOnce(session)
+    rerender(ui())
+    const close = await screen.findByRole('button', { name: 'active.close' })
+
+    vi.mocked(closeBreakoutSession).mockReturnValueOnce(new Promise(() => {}))
+    fireEvent.click(close)
+    await waitFor(() => expect(close.hasAttribute('disabled')).toBe(true))
+    vi.mocked(fetchBreakoutSession).mockResolvedValueOnce({
+      ...session,
+      status: 'closing',
+    })
+    announce(null)
+    rerender(ui())
     expect(screen.queryByRole('button', { name: 'setup.open' })).toBeNull()
+    await screen.findByText('active.closing')
+    expect(
+      screen
+        .getByRole('button', { name: 'active.close' })
+        .hasAttribute('disabled')
+    ).toBe(true)
+  })
+
+  it('keeps the session with an error when a later refetch fails', async () => {
+    announce('s1')
+    vi.mocked(fetchBreakoutSession).mockResolvedValueOnce(session)
+    render(ui())
+    await screen.findByRole('button', { name: 'active.close' })
+    vi.mocked(fetchBreakoutSession).mockRejectedValueOnce(
+      new ApiError(503, { detail: 'Service unavailable.' })
+    )
+    await act(async () => {
+      focusManager.setFocused(false)
+      focusManager.setFocused(true)
+    })
+    await screen.findByRole('alert')
+    expect(
+      screen.queryByRole('button', { name: 'active.close' })
+    ).not.toBeNull()
+  })
+
+  it('shows a failed close and lets the host close again', async () => {
+    announce('s1')
+    vi.mocked(fetchBreakoutSession).mockResolvedValue(session)
+    render(ui())
+    const close = await screen.findByRole('button', { name: 'active.close' })
+    vi.mocked(closeBreakoutSession).mockRejectedValueOnce(
+      new ApiError(503, { detail: 'Service unavailable.' })
+    )
+    fireEvent.click(close)
+    await screen.findByRole('alert')
+    await waitFor(() => expect(close.hasAttribute('disabled')).toBe(false))
   })
 
   it('shows a closing session as closing and lets the host close it again', async () => {

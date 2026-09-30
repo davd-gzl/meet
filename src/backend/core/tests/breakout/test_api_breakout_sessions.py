@@ -5,6 +5,7 @@ Test breakout sessions API endpoints in the Meet core app.
 # pylint: disable=W0621,W0613
 import asyncio
 import json
+import time
 from unittest import mock
 
 from django.conf import settings
@@ -188,6 +189,18 @@ def test_api_breakout_sessions_create_invalid(livekit, owner_room, rooms):
     livekit.room.create_room.assert_not_awaited()
 
 
+def test_api_breakout_sessions_create_long_name(livekit, owner_room):
+    """A name longer than the column, which joining accepts, is cut, not refused."""
+    room, client = owner_room
+    split = payload(["alice"], ["bob"])
+    split["rooms"][0]["participants"][0]["name"] = "x" * 300
+
+    response = client.post(url(room), split, "json")
+
+    assert response.status_code == 201
+    assert models.BreakoutAssignment.objects.get(identity="alice").name == "x" * 255
+
+
 def test_api_breakout_sessions_create_already_active(livekit, owner_room):
     """A second session is refused before the media server is called."""
     room, client = owner_room
@@ -305,9 +318,11 @@ def test_api_breakout_sessions_media_server_call_is_bounded(livekit, owner_room)
     livekit.room.create_room.side_effect = hang
     livekit.room.delete_room.side_effect = hang
 
+    started = time.monotonic()
     with mock.patch.object(room_management, "MEDIA_SERVER_TIMEOUT_SECONDS", 0.05):
         response = client.post(url(room), payload(["alice"], ["bob"]), "json")
 
+    assert time.monotonic() - started < 10
     assert response.status_code == 503
     assert not models.BreakoutSession.objects.exists()
 
@@ -369,6 +384,7 @@ def test_api_breakout_sessions_close(livekit, owner_room):
     livekit.reset_mock()
     assert client.post(url(room, f"{session.id!s}/close/")).status_code == 200
     livekit.room.delete_room.assert_not_awaited()
+    livekit.room.update_room_metadata.assert_not_awaited()
 
 
 def test_api_breakout_sessions_close_room_already_gone(livekit, owner_room):
@@ -404,6 +420,26 @@ def test_api_breakout_sessions_close_fails_then_retries(livekit, owner_room):
     assert response.json()["status"] == "closed"
     assert livekit.room.delete_room.await_count == 2
     assert client.get(url(room)).json() == []
+
+
+def test_api_breakout_sessions_close_signal_fails_then_retries(livekit, owner_room):
+    """A signal removal that fails leaves the session closing with its rooms kept."""
+    room, client = owner_room
+    session = make_session(room, ["alice"], ["bob"])
+    livekit.room.update_room_metadata.side_effect = TimeoutError
+
+    response = client.post(url(room, f"{session.id!s}/close/"))
+
+    assert response.status_code == 503
+    assert [s["status"] for s in client.get(url(room)).json()] == ["closing"]
+    livekit.room.delete_room.assert_not_awaited()
+
+    livekit.room.update_room_metadata.side_effect = None
+    response = client.post(url(room, f"{session.id!s}/close/"))
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "closed"
+    assert livekit.room.delete_room.await_count == 2
 
 
 def test_api_breakout_sessions_join_during_close(livekit, owner_room):

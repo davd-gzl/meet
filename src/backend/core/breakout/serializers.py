@@ -43,7 +43,11 @@ class ParticipantInputSerializer(serializers.Serializer):
     """A participant the host assigns."""
 
     identity = serializers.CharField(max_length=255, trim_whitespace=False)
-    name = serializers.CharField(max_length=255, allow_blank=True)
+    name = serializers.CharField(allow_blank=True)
+
+    def validate_name(self, value):
+        """Cut the name to the column: joining takes a name of any length."""
+        return value[:255]
 
 
 class RoomInputSerializer(serializers.Serializer):

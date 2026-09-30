@@ -92,4 +92,10 @@ describe('buildRooms', () => {
       { name: 'Room 2', participants: [{ identity: 'alice', name: 'Alice' }] },
     ])
   })
+
+  it('cuts a name to the 255 characters the server keeps', () => {
+    const people = [{ identity: 'alice', name: 'é'.repeat(300) }]
+    const [room] = buildRooms(['Room 1'], people, { alice: 0 })
+    expect(room.participants[0].name).toBe('é'.repeat(255))
+  })
 })

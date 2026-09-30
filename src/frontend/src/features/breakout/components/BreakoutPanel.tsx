@@ -1,4 +1,5 @@
-import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
 import { Button, Div, Text } from '@/primitives'
@@ -70,8 +71,8 @@ const ActiveSession = ({
 }
 
 export const BreakoutPanel = () => {
+  const { t } = useTranslation('rooms', { keyPrefix: 'breakout' })
   const roomId = useRoomData()?.id
-  // Keyed on the announced session, so an open or close elsewhere refetches.
   const announced: string | null =
     useRoomMetadata()?.breakout?.session_id ?? null
   const {
@@ -79,14 +80,20 @@ export const BreakoutPanel = () => {
     isPending,
     isError,
   } = useQuery({
-    queryKey: [...breakoutSessionKey(roomId), announced],
+    queryKey: breakoutSessionKey(roomId),
     queryFn: () => fetchBreakoutSession(roomId as string),
     enabled: !!roomId,
     retry: false,
-    placeholderData: keepPreviousData,
   })
-  // A failed list: Open would fail as well, so no form.
-  if (!roomId || isPending || isError) return null
+  // An open or close elsewhere refetches, the shown session kept meanwhile.
+  const seen = useRef(announced)
+  useEffect(() => {
+    if (seen.current === announced) return
+    seen.current = announced
+    void queryClient.invalidateQueries({ queryKey: breakoutSessionKey(roomId) })
+  }, [announced, roomId])
+  // A first list that failed: Open would fail as well, so no form.
+  if (!roomId || isPending || (isError && session === undefined)) return null
 
   return (
     <Div
@@ -97,6 +104,11 @@ export const BreakoutPanel = () => {
       flexDirection="column"
       gap="1rem"
     >
+      {isError && (
+        <Text variant="warning" role="alert">
+          {t('error')}
+        </Text>
+      )}
       {session ? (
         <ActiveSession roomId={roomId} session={session} />
       ) : (

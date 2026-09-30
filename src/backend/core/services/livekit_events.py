@@ -309,23 +309,29 @@ class LiveKitEventsService:
             )
             raise ActionFailedError("Failed to process room finished event") from e
 
-        if settings.ROOM_TELEPHONY_ENABLED or settings.ROOMKIT_ENABLED:
-            try:
-                self.sip_management.delete_dispatch_rule(room_id)
-            except SIPException as e:
-                raise ActionFailedError(
-                    f"Failed to delete sip dispatch rule for room {room_id}"
-                ) from e
-
-        self.presence_cache.clear_room(room_id)
-
         try:
-            self.lobby_service.clear_room_cache(room_id)
-        except Exception as e:
-            raise ActionFailedError(
-                f"Failed to clear room cache for room {room_id}"
-            ) from e
+            if settings.ROOM_TELEPHONY_ENABLED or settings.ROOMKIT_ENABLED:
+                try:
+                    self.sip_management.delete_dispatch_rule(room_id)
+                except SIPException as e:
+                    raise ActionFailedError(
+                        f"Failed to delete sip dispatch rule for room {room_id}"
+                    ) from e
 
+            self.presence_cache.clear_room(room_id)
+
+            try:
+                self.lobby_service.clear_room_cache(room_id)
+            except Exception as e:
+                raise ActionFailedError(
+                    f"Failed to clear room cache for room {room_id}"
+                ) from e
+        finally:
+            # A failed cleanup above must not leave the split open for the next meeting.
+            self._close_breakout_session(room_id)
+
+    def _close_breakout_session(self, room_id):
+        """Close the meeting's open breakout session, if any."""
         # Hosts are never moved, so an empty meeting is a split nobody will close.
         session = models.BreakoutSession.objects.filter(
             room_id=room_id, status__in=models.OPEN_BREAKOUT_STATUSES
