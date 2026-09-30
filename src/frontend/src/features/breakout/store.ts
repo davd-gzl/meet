@@ -1,5 +1,6 @@
 import { proxy } from 'valtio'
-import type { MediaIntent } from './utils/mediaIntent'
+
+export type MediaIntent = { camera: boolean; microphone: boolean }
 
 type BreakoutRoomRef = { id: string; name: string }
 

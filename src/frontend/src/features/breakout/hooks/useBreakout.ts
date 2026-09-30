@@ -3,19 +3,15 @@ import {
   useConnectionState,
   useLocalParticipant,
   useRoomContext,
-  useRoomInfo,
 } from '@livekit/components-react'
 import { ConnectionState, type Room } from 'livekit-client'
 import { requestEntry } from '@/features/rooms/api/requestEntry'
 import { reportError } from '@/features/analytics/telemetry'
+import { useRoomMetadata } from '@/features/recording/hooks/useRoomMetadata'
 import { fetchBreakoutAssignment, joinBreakoutRoom } from '../api'
 import { breakoutStore } from '../store'
-import { captureMediaIntent } from '../utils/mediaIntent'
-import { swapRoomConnection } from '../utils/roomLifecycle'
-import {
-  readBreakoutSessionId,
-  shouldFetchAssignment,
-} from '../utils/transitions'
+import { leaveCurrentRoom } from '../utils/roomLifecycle'
+import { shouldFetchAssignment } from '../utils/transitions'
 
 // Hands a pass to Conference, which builds a new Room for it.
 export type Connect = (token: string) => void
@@ -36,11 +32,10 @@ const moveToAssignedRoom = async (
     )
     breakoutStore.pendingMedia = breakoutStore.media
     breakoutStore.leaving = true
-    await swapRoomConnection(room, pass.token, (token) => {
-      breakoutStore.leaving = false
-      breakoutStore.room = assignment.room
-      connect(token)
-    })
+    await leaveCurrentRoom(room)
+    breakoutStore.leaving = false
+    breakoutStore.room = assignment.room
+    connect(pass.token)
   } catch (error) {
     Object.assign(breakoutStore, {
       target: null,
@@ -74,7 +69,6 @@ export const returnToMainRoom = async (
 
 export const useBreakout = (mainRoomId: string, connect: Connect) => {
   const room = useRoomContext()
-  const { metadata } = useRoomInfo()
   const state = useConnectionState()
   const { isCameraEnabled, isMicrophoneEnabled } = useLocalParticipant()
 
@@ -82,13 +76,14 @@ export const useBreakout = (mainRoomId: string, connect: Connect) => {
   useEffect(() => {
     if (state !== ConnectionState.Connected || breakoutStore.pendingMedia)
       return
-    breakoutStore.media = captureMediaIntent({
-      isCameraEnabled,
-      isMicrophoneEnabled,
-    })
+    breakoutStore.media = {
+      camera: isCameraEnabled,
+      microphone: isMicrophoneEnabled,
+    }
   }, [state, isCameraEnabled, isMicrophoneEnabled])
 
-  const sessionId = readBreakoutSessionId(metadata)
+  const sessionId: string | null =
+    useRoomMetadata()?.breakout?.session_id ?? null
   useEffect(() => {
     if (!sessionId && breakoutStore.moveFailed) breakoutStore.moveFailed = false
     if (state !== ConnectionState.Connected) return

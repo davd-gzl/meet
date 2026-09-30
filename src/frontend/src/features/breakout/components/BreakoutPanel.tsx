@@ -1,17 +1,16 @@
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
-import { useRoomInfo } from '@livekit/components-react'
 import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
 import { Button, Div, Text } from '@/primitives'
 import { queryClient } from '@/api/queryClient'
 import { useRoomData } from '@/features/rooms/livekit/hooks/useRoomData'
+import { useRoomMetadata } from '@/features/recording/hooks/useRoomMetadata'
 import {
   breakoutSessionKey,
   closeBreakoutSession,
   fetchBreakoutSession,
   type BreakoutSession,
 } from '../api'
-import { readBreakoutSessionId } from '../utils/transitions'
 import { BreakoutSetup } from './BreakoutSetup'
 
 const ActiveSession = ({
@@ -24,7 +23,8 @@ const ActiveSession = ({
   const { t } = useTranslation('rooms', { keyPrefix: 'breakout' })
   const close = useMutation({
     mutationFn: () => closeBreakoutSession(roomId, session.id),
-    onSettled: () =>
+    // A close that lands changes the metadata, and so the query key.
+    onError: () =>
       queryClient.invalidateQueries({ queryKey: breakoutSessionKey(roomId) }),
   })
 
@@ -66,9 +66,9 @@ const ActiveSession = ({
 
 export const BreakoutPanel = () => {
   const roomId = useRoomData()?.id
-  const { metadata } = useRoomInfo()
   // Keyed on the announced session, so an open or close elsewhere refetches.
-  const announced = readBreakoutSessionId(metadata)
+  const announced: string | null =
+    useRoomMetadata()?.breakout?.session_id ?? null
   const { data, isPending, isError } = useQuery({
     queryKey: [...breakoutSessionKey(roomId), announced],
     queryFn: () => fetchBreakoutSession(roomId as string),

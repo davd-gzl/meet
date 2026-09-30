@@ -1,5 +1,6 @@
 """API endpoints for breakout sessions, nested under a meeting."""
 
+from django.db.models import prefetch_related_objects
 from django.shortcuts import get_object_or_404
 
 from rest_framework import response as drf_response
@@ -30,19 +31,19 @@ class BreakoutSessionViewSet(viewsets.ViewSet):
 
     def _get_assignment(self, room, **filters):
         """The caller's assignment in the meeting's active session, or 404."""
-        user = self.request.user
-        identity = (
-            str(user.sub)
-            if user.is_authenticated
-            else LobbyService.get_or_create_participant_id(self.request, room.id)
-        )
+        request = self.request
+        assignments = models.BreakoutAssignment.objects.select_related("breakout_room")
+        if (
+            not request.user.is_authenticated
+            and LobbyService.read_guest_capability(request) is None
+        ):
+            # A guest without a capability was never assigned: 404 without a query.
+            return get_object_or_404(assignments.none())
         return get_object_or_404(
-            models.BreakoutAssignment.objects.select_related(
-                "breakout_room", "session__room"
-            ),
+            assignments,
             session__room=room,
             session__status=ACTIVE,
-            identity=identity,
+            identity=LobbyService.participant_identity(request, room.id),
             **filters,
         )
 
@@ -66,6 +67,7 @@ class BreakoutSessionViewSet(viewsets.ViewSet):
         session = services.open_session(
             room, request.user, serializer.validated_data["rooms"]
         )
+        prefetch_related_objects([session], "rooms__assignments")
         return drf_response.Response(
             serializers.BreakoutSessionSerializer(session).data,
             status=drf_status.HTTP_201_CREATED,
@@ -77,6 +79,7 @@ class BreakoutSessionViewSet(viewsets.ViewSet):
         session = services.close_session(
             get_object_or_404(room.breakout_sessions, pk=pk)
         )
+        prefetch_related_objects([session], "rooms__assignments")
         return drf_response.Response(
             serializers.BreakoutSessionSerializer(session).data
         )
@@ -98,7 +101,6 @@ class BreakoutSessionViewSet(viewsets.ViewSet):
     @FeatureFlag.require("breakout_rooms")
     def join(self, request, room_id=None, pk=None, room_pk=None):
         """A pass to the breakout room the caller is assigned to."""
-        assignment = self._get_assignment(
-            self._get_room(room_id), session_id=pk, breakout_room_id=room_pk
-        )
-        return drf_response.Response(services.join_pass(assignment, request.user))
+        room = self._get_room(room_id)
+        assignment = self._get_assignment(room, session_id=pk, breakout_room_id=room_pk)
+        return drf_response.Response(services.join_pass(room, assignment, request.user))

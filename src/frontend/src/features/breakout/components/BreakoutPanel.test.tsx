@@ -20,7 +20,7 @@ vi.mock('react-i18next', () => ({
 }))
 vi.mock('@livekit/components-react', () => ({
   useRoomInfo: () => ({ metadata: h.metadata }),
-  useParticipants: () => [],
+  useRemoteParticipants: () => [],
 }))
 vi.mock('@/features/rooms/livekit/hooks/useRoomData', () => ({
   useRoomData: () => ({ id: 'room-1' }),

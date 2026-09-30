@@ -11,7 +11,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 vi.mock('@livekit/components-react', () => ({
-  useParticipants: () => h.participants,
+  useRemoteParticipants: () => h.participants,
 }))
 
 const guest = {

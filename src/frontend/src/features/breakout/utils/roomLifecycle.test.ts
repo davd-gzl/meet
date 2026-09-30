@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  DISCONNECTED,
-  leaveCurrentRoom,
-  swapRoomConnection,
-} from './roomLifecycle'
+import { ConnectionState } from 'livekit-client'
+import { leaveCurrentRoom } from './roomLifecycle'
 
 const MAIN = 'main-meeting'
 const BREAKOUT = 'breakout_s_0'
@@ -21,7 +18,7 @@ const deferred = () => {
 // livekit-client's Room reduced to what decides a move: connect() ignores the
 // token when already connected, and disconnect() lands once the gate opens.
 class FakeRoom {
-  state = DISCONNECTED
+  state = ConnectionState.Disconnected
   name: string | null = null
   log: string[] = []
   disconnectCalls = 0
@@ -29,7 +26,7 @@ class FakeRoom {
 
   constructor(joined?: string) {
     if (joined) {
-      this.state = 'connected'
+      this.state = ConnectionState.Connected
       this.name = joined
     }
     this.gate.resolve()
@@ -41,19 +38,19 @@ class FakeRoom {
   }
 
   connect = async (token: string) => {
-    if (this.state === 'connected') {
+    if (this.state === ConnectionState.Connected) {
       this.log.push(`already connected to room ${this.name}`)
       return
     }
-    this.state = 'connected'
+    this.state = ConnectionState.Connected
     this.name = token
   }
 
   disconnect = async () => {
-    if (this.state === DISCONNECTED) return
+    if (this.state === ConnectionState.Disconnected) return
     this.disconnectCalls += 1
     await this.gate.promise
-    this.state = DISCONNECTED
+    this.state = ConnectionState.Disconnected
     this.name = null
   }
 }
@@ -72,7 +69,8 @@ describe('leaveCurrentRoom', () => {
     const left = leaveCurrentRoom(room)
     expect(room.state).toBe('connected')
     room.gate.resolve()
-    await expect(left).resolves.toBe(true)
+    await left
+    expect(room.disconnectCalls).toBe(1)
 
     await remountWithToken(room, BREAKOUT)
 
@@ -80,11 +78,11 @@ describe('leaveCurrentRoom', () => {
     expect(room.log).toEqual([])
   })
 
-  it('reports that a participant outside a room had nothing to leave', async () => {
+  it('disconnects nothing for a participant outside a room', async () => {
     const room = new FakeRoom()
 
-    await expect(leaveCurrentRoom(room)).resolves.toBe(false)
-    await expect(leaveCurrentRoom(null)).resolves.toBe(false)
+    await leaveCurrentRoom(room)
+    await expect(leaveCurrentRoom(null)).resolves.toBeUndefined()
     expect(room.disconnectCalls).toBe(0)
   })
 
@@ -97,51 +95,5 @@ describe('leaveCurrentRoom', () => {
     await expect(left).rejects.toThrow('leave_failed')
     expect(room.state).toBe('connected')
     expect(room.name).toBe(MAIN)
-  })
-})
-
-describe('swapRoomConnection', () => {
-  it('does not publish the new token until the meeting has been left', async () => {
-    const room = new FakeRoom(MAIN)
-    const gate = room.holdDisconnect()
-    const applied: string[] = []
-
-    const swap = swapRoomConnection(room, BREAKOUT, (token) => {
-      applied.push(token)
-      void remountWithToken(room, token)
-    })
-
-    expect(applied).toEqual([])
-
-    gate.resolve()
-    await swap
-
-    expect(applied).toEqual([BREAKOUT])
-    expect(room.name).toBe(BREAKOUT)
-    expect(room.log).toEqual([])
-  })
-
-  it('publishes nothing when the meeting could not be left', async () => {
-    const room = new FakeRoom(MAIN)
-    const gate = room.holdDisconnect()
-    const applied: string[] = []
-
-    const swap = swapRoomConnection(room, BREAKOUT, (token) =>
-      applied.push(token)
-    )
-    gate.reject(new Error('leave_failed'))
-
-    await expect(swap).rejects.toThrow('leave_failed')
-    expect(applied).toEqual([])
-    expect(room.name).toBe(MAIN)
-  })
-
-  it('still publishes for a participant who was in no room', async () => {
-    const room = new FakeRoom()
-    const applied: string[] = []
-
-    await swapRoomConnection(room, BREAKOUT, (token) => applied.push(token))
-
-    expect(applied).toEqual([BREAKOUT])
   })
 })

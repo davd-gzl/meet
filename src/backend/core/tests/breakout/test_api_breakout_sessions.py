@@ -8,9 +8,7 @@ import json
 from unittest import mock
 
 from django.conf import settings
-from django.core import signing
 from django.db import IntegrityError
-from django.http import HttpRequest
 
 import jwt
 import pytest
@@ -21,6 +19,7 @@ from core import models
 from core.breakout import services
 from core.factories import RoomFactory, UserFactory, UserResourceAccessFactory
 from core.services.lobby import LobbyService
+from core.tests.guests import guest_request, signed_capability
 
 pytestmark = pytest.mark.django_db
 
@@ -47,14 +46,21 @@ def livekit():
         yield client
 
 
+def logged_in(room, role=None):
+    """A new user, holding role in the meeting if given, and a client logged in as them."""
+    user = UserFactory()
+    if role:
+        UserResourceAccessFactory(resource=room, user=user, role=role)
+    client = APIClient()
+    client.force_login(user)
+    return user, client
+
+
 @pytest.fixture
 def owner_room():
     """A meeting and an API client logged in as its owner."""
     room = RoomFactory(configuration={"can_publish_sources": ["microphone"]})
-    user = UserFactory()
-    UserResourceAccessFactory(resource=room, user=user, role="owner")
-    client = APIClient()
-    client.force_login(user)
+    _owner, client = logged_in(room, "owner")
     return room, client
 
 
@@ -87,6 +93,7 @@ def make_session(room, *room_participants):
             session=session,
             name=f"Room {index + 1}",
             livekit_room_name=f"breakout_{session.id!s}_{index}",
+            position=index,
         )
         for identity in identities:
             models.BreakoutAssignment.objects.create(
@@ -103,11 +110,10 @@ def written_metadata(livekit):
 
 def guest_client(room):
     """A guest's client carrying a signed capability, and its identity in the room."""
-    cookie = signing.dumps("capability", salt=LobbyService.GUEST_COOKIE_SALT)
+    cookie = signed_capability("capability")
     client = APIClient()
     client.cookies[settings.LOBBY_COOKIE_NAME] = cookie
-    replay = HttpRequest()
-    replay.COOKIES[settings.LOBBY_COOKIE_NAME] = cookie
+    replay = guest_request(cookie)
     return client, LobbyService.get_or_create_participant_id(replay, room.id)
 
 
@@ -152,11 +158,7 @@ def test_api_breakout_sessions_create_owner(livekit, owner_room):
 def test_api_breakout_sessions_create_not_manager(livekit, role):
     """Only the meeting's owner or administrators open a session."""
     room = RoomFactory()
-    client = APIClient()
-    if role:
-        user = UserFactory()
-        UserResourceAccessFactory(resource=room, user=user, role=role)
-        client.force_login(user)
+    client = logged_in(room, role)[1] if role else APIClient()
 
     response = client.post(url(room), payload(["alice"], ["bob"]), "json")
 
@@ -319,10 +321,8 @@ def test_api_breakout_sessions_list_empty_and_member(livekit, owner_room):
     room, client = owner_room
     assert client.get(url(room)).json() == []
 
-    member = UserFactory()
-    UserResourceAccessFactory(resource=room, user=member, role="member")
-    client.force_login(member)
-    assert client.get(url(room)).status_code == 403
+    _member, member_client = logged_in(room, "member")
+    assert member_client.get(url(room)).status_code == 403
 
 
 # Close
@@ -401,10 +401,7 @@ def test_api_breakout_sessions_close_member(livekit, owner_room):
     """A member cannot close a session."""
     room, _client = owner_room
     session = make_session(room, ["alice"], ["bob"])
-    member = UserFactory()
-    UserResourceAccessFactory(resource=room, user=member, role="member")
-    client = APIClient()
-    client.force_login(member)
+    _member, client = logged_in(room, "member")
 
     response = client.post(url(room, f"{session.id!s}/close/"))
 
@@ -437,10 +434,8 @@ def test_api_breakout_sessions_flag_off(livekit, owner_room, settings):
 def test_api_breakout_sessions_current_assignment_user(livekit):
     """A signed-in participant finds their room by their sub."""
     room = RoomFactory()
-    user = UserFactory()
+    user, client = logged_in(room)
     session = make_session(room, ["alice"], [str(user.sub)])
-    client = APIClient()
-    client.force_login(user)
 
     response = client.get(url(room, "current-assignment/"))
 
@@ -468,11 +463,9 @@ def test_api_breakout_sessions_current_assignment_guest(livekit):
 def test_api_breakout_sessions_current_assignment_closed(livekit):
     """A closed session assigns nobody."""
     room = RoomFactory()
-    user = UserFactory()
+    user, client = logged_in(room)
     make_session(room, [str(user.sub)], ["bob"])
     models.BreakoutSession.objects.update(status=CLOSED)
-    client = APIClient()
-    client.force_login(user)
 
     assert client.get(url(room, "current-assignment/")).status_code == 404
 
@@ -480,12 +473,9 @@ def test_api_breakout_sessions_current_assignment_closed(livekit):
 def test_api_breakout_sessions_join(livekit):
     """The assigned participant gets a short member pass to that room only."""
     room = RoomFactory(configuration={"can_publish_sources": ["microphone"]})
-    user = UserFactory()
-    UserResourceAccessFactory(resource=room, user=user, role="owner")
+    user, client = logged_in(room, "owner")
     session = make_session(room, [str(user.sub)], ["bob"])
     own, other = session.rooms.all()
-    client = APIClient()
-    client.force_login(user)
 
     response = client.post(url(room, f"{session.id!s}/rooms/{own.id!s}/join/"))
 

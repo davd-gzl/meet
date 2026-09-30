@@ -6,9 +6,7 @@ Test rooms API endpoints in the Meet core app: lobby functionality.
 import uuid
 from unittest import mock
 
-from django.core import signing
 from django.core.cache import cache
-from django.http import HttpRequest
 
 import pytest
 from freezegun import freeze_time
@@ -20,6 +18,7 @@ from ...models import RoomAccessLevel
 from ...services.lobby import (
     LobbyService,
 )
+from ..guests import guest_request, signed_capability
 
 pytestmark = pytest.mark.django_db
 
@@ -316,10 +315,10 @@ def test_request_entry_waiting_participant_public_room(settings):
     settings.LOBBY_COOKIE_NAME = "mocked-cookie"
     settings.LOBBY_KEY_PREFIX = "mocked-cache-prefix"
 
-    guest_cookie = signing.dumps(str(uuid.uuid4()), salt=LobbyService.GUEST_COOKIE_SALT)
-    guest_request = HttpRequest()
-    guest_request.COOKIES["mocked-cookie"] = guest_cookie
-    participant_id = LobbyService.get_or_create_participant_id(guest_request, room.id)
+    guest_cookie = signed_capability(str(uuid.uuid4()))
+    participant_id = LobbyService.get_or_create_participant_id(
+        guest_request(guest_cookie), room.id
+    )
 
     # Add a waiting participant to the room's lobby cache
     cache.set(
@@ -807,13 +806,7 @@ def test_request_entry_throttling_anonymous_with_cookie(
 
     # A capability of its own, since the throttle cache is shared across tests
     capability = str(uuid.uuid4())
-    client.cookies.load(
-        {
-            "mocked-cookie": signing.dumps(
-                capability, salt=LobbyService.GUEST_COOKIE_SALT
-            )
-        }
-    )
+    client.cookies.load({"mocked-cookie": signed_capability(capability)})
 
     response = client.post(
         f"/api/v1.0/rooms/{room.id}/request-entry/",

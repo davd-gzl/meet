@@ -167,9 +167,12 @@ def open_session(room, user, rooms):
             )
             breakout_rooms = models.BreakoutRoom.objects.bulk_create(
                 models.BreakoutRoom(
-                    session=session, name=data["name"], livekit_room_name=name
+                    session=session,
+                    name=data["name"],
+                    livekit_room_name=name,
+                    position=position,
                 )
-                for data, name in zip(rooms, names, strict=True)
+                for position, (data, name) in enumerate(zip(rooms, names, strict=True))
             )
             models.BreakoutAssignment.objects.bulk_create(
                 models.BreakoutAssignment(
@@ -181,11 +184,10 @@ def open_session(room, user, rooms):
                 for data, breakout_room in zip(rooms, breakout_rooms, strict=True)
                 for participant in data["participants"]
             )
-    except (IntegrityError, ValidationError) as error:
+    except Exception as error:
         _discard_rooms(names)
-        raise SessionAlreadyActive() from error
-    except Exception:
-        _discard_rooms(names)
+        if isinstance(error, (IntegrityError, ValidationError)):
+            raise SessionAlreadyActive() from error
         raise
 
     signal = {"session_id": str(session.id), "status": active}
@@ -222,10 +224,10 @@ def close_session(session):
     return session
 
 
-def join_pass(assignment, user):
-    """A member's pass to the breakout room the participant is assigned to."""
+def join_pass(room, assignment, user):
+    """A member's pass to the participant's breakout room, publishing what room allows."""
     breakout_room = assignment.breakout_room
-    configuration = assignment.session.room.configuration
+    configuration = room.configuration
     return {
         "url": settings.LIVEKIT_CONFIGURATION["url"],
         "room": breakout_room.livekit_room_name,

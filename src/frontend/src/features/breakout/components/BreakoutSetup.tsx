@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { useParticipants } from '@livekit/components-react'
+import { useRemoteParticipants } from '@livekit/components-react'
+import { RoomEvent } from 'livekit-client'
 import { useTranslation } from 'react-i18next'
 import { RiShuffleLine } from '@remixicon/react'
 import { css } from '@/styled-system/css'
@@ -29,7 +30,13 @@ export const BreakoutSetup = ({ roomId }: { roomId: string }) => {
   const [roomCount, setRoomCount] = useState(MIN_ROOMS)
   const [assignments, setAssignments] = useState<Assignments>({})
 
-  const people = useParticipants()
+  // Joins and leaves always update; a name or a role is all else the list reads.
+  const people = useRemoteParticipants({
+    updateOnlyOn: [
+      RoomEvent.ParticipantNameChanged,
+      RoomEvent.ParticipantAttributesChanged,
+    ],
+  })
     .filter(isAssignable)
     .map((p) => ({ identity: p.identity, name: p.name || p.identity }))
   const identities = people.map((p) => p.identity)
@@ -47,7 +54,8 @@ export const BreakoutSetup = ({ roomId }: { roomId: string }) => {
       createBreakoutSession(roomId, {
         rooms: buildRooms(roomNames, people, assignments),
       }),
-    onSettled: () =>
+    // An open that lands changes the metadata, and so the query key.
+    onError: () =>
       queryClient.invalidateQueries({ queryKey: breakoutSessionKey(roomId) }),
   })
 

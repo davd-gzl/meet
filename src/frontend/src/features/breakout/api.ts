@@ -1,5 +1,6 @@
 import { fetchApi } from '@/api/fetchApi'
 import { ApiError } from '@/api/ApiError'
+import { keys } from '@/api/queryKeys'
 import type { ApiLiveKit } from '@/features/rooms/api/ApiRoom'
 
 export type BreakoutPerson = { identity: string; name: string }
@@ -22,7 +23,7 @@ export type CreateBreakoutSession = {
 const sessionsUrl = (roomId: string) => `/rooms/${roomId}/breakout-sessions/`
 
 export const breakoutSessionKey = (roomId?: string) => [
-  'breakoutSession',
+  keys.breakoutSession,
   roomId,
 ]
 

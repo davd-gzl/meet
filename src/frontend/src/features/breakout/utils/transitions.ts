@@ -1,16 +1,5 @@
 import { DisconnectReason } from 'livekit-client'
 
-// The session id the main meeting's metadata announces, or null.
-export const readBreakoutSessionId = (metadata?: string): string | null => {
-  if (!metadata) return null
-  try {
-    const sessionId = JSON.parse(metadata)?.breakout?.session_id
-    return sessionId ? String(sessionId) : null
-  } catch {
-    return null
-  }
-}
-
 type MoveState = {
   room: unknown
   target: unknown

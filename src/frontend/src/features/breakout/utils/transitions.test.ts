@@ -1,32 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { DisconnectReason } from 'livekit-client'
-import {
-  disconnectAction,
-  readBreakoutSessionId,
-  shouldFetchAssignment,
-} from './transitions'
+import { disconnectAction, shouldFetchAssignment } from './transitions'
 
 const inMain = { room: null, target: null, sessionId: null }
 const breakoutRoom = { id: 'r1', name: 'Room 1' }
-
-describe('readBreakoutSessionId', () => {
-  it('reads the session the main meeting announces', () => {
-    const metadata = JSON.stringify({
-      breakout: { session_id: 's1', status: 'active' },
-      recording: {},
-    })
-    expect(readBreakoutSessionId(metadata)).toBe('s1')
-  })
-
-  it('reads nothing from absent, foreign or broken metadata', () => {
-    expect(readBreakoutSessionId(undefined)).toBeNull()
-    expect(readBreakoutSessionId('')).toBeNull()
-    expect(readBreakoutSessionId('{"recording":{}}')).toBeNull()
-    expect(readBreakoutSessionId('{"breakout":{}}')).toBeNull()
-    expect(readBreakoutSessionId('not json')).toBeNull()
-    expect(readBreakoutSessionId('null')).toBeNull()
-  })
-})
 
 describe('shouldFetchAssignment', () => {
   it('fetches when a session appears in the main meeting', () => {

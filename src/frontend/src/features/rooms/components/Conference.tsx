@@ -200,14 +200,15 @@ export const Conference = ({
 
   const hasAutoMutedRef = useRef(false)
 
+  // Reads the name at call time, so onError keeps its identity when it changes.
   const leaveBreakout = useCallback(
     () =>
       returnToMainRoom(
         roomId,
-        username || room.localParticipant.name || '',
+        userStore.username || room.localParticipant.name || '',
         connect
       ),
-    [roomId, username, room, connect]
+    [roomId, room, connect]
   )
 
   useEffect(() => resetBreakout, [roomId])
@@ -327,10 +328,7 @@ export const Conference = ({
           onDisconnected={(e) => {
             const action = disconnectAction(e, breakoutStore)
             if (action === 'ignore') return
-            if (action === 'returnToMain') {
-              void leaveBreakout()
-              return
-            }
+            if (action === 'returnToMain') return void leaveBreakout()
             const metadata = {
               room_id: roomId,
             }

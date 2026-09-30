@@ -1151,11 +1151,12 @@ class BreakoutRoom(BaseModel):
     livekit_room_name = models.CharField(
         max_length=100, unique=True, verbose_name=_("LiveKit room name")
     )
+    # The room's index in the host's split, which orders the rooms.
+    position = models.PositiveSmallIntegerField(verbose_name=_("Position"))
 
     class Meta:
         db_table = "meet_breakout_room"
-        # Names end in the room's index, 0 to 9, so this is the host's order.
-        ordering = ("livekit_room_name",)
+        ordering = ("position",)
         verbose_name = _("Breakout room")
         verbose_name_plural = _("Breakout rooms")
 
