@@ -335,8 +335,7 @@
         "exit": "Stop volledig scherm stand"
       },
       "support": "Contact ondersteuning",
-      "documentation": "Documentatie",
-      "breakout": "Aparte ruimtes"
+      "documentation": "Documentatie"
     }
   },
   "effects": {
@@ -457,6 +456,10 @@
       "screenRecording": {
         "title": "Opnemen",
         "body": "Sla vergaderingen op als video."
+      },
+      "breakout": {
+        "title": "Aparte ruimtes",
+        "body": "Verdeel de vergadering in kleinere groepen."
       }
     }
   },
@@ -844,13 +847,16 @@
     },
     "active": {
       "empty": "Niemand toegewezen",
-      "close": "Ruimtes sluiten"
+      "close": "Ruimtes sluiten",
+      "closing": "Ruimtes worden gesloten…"
     },
     "participant": {
       "currentRoom": "Je bent in {{room}}",
       "moving": "Naar {{room}}…",
       "returning": "Terug naar de hoofdvergadering…",
-      "moveFailed": "Je kon niet naar je ruimte worden verplaatst"
+      "moveFailed": "Je kon niet naar je ruimte worden verplaatst",
+      "returnFailed": "Je kon niet terug naar de hoofdvergadering worden gebracht",
+      "rejoin": "Opnieuw deelnemen"
     }
   }
 }

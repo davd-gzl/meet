@@ -335,8 +335,7 @@
         "exit": "Vollbildmodus verlassen"
       },
       "support": "Support kontaktieren",
-      "documentation": "Dokumentation",
-      "breakout": "Breakout-Räume"
+      "documentation": "Dokumentation"
     }
   },
   "effects": {
@@ -457,6 +456,10 @@
       "screenRecording": {
         "title": "Aufnehmen",
         "body": "Speichert Meetings als Video."
+      },
+      "breakout": {
+        "title": "Breakout-Räume",
+        "body": "Teile das Meeting in kleinere Gruppen auf."
       }
     }
   },
@@ -844,13 +847,16 @@
     },
     "active": {
       "empty": "Niemand zugewiesen",
-      "close": "Räume schließen"
+      "close": "Räume schließen",
+      "closing": "Räume werden geschlossen…"
     },
     "participant": {
       "currentRoom": "Du bist in {{room}}",
       "moving": "Wechsel zu {{room}}…",
       "returning": "Rückkehr zur Hauptbesprechung…",
-      "moveFailed": "Du konntest nicht in deinen Raum verschoben werden"
+      "moveFailed": "Du konntest nicht in deinen Raum verschoben werden",
+      "returnFailed": "Du konntest nicht zur Hauptbesprechung zurückgebracht werden",
+      "rejoin": "Erneut beitreten"
     }
   }
 }

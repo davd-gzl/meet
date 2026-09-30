@@ -70,24 +70,37 @@ describe('BreakoutPanel', () => {
     ).not.toBeNull()
   })
 
-  it('offers no Open form once a leftover session is closed with the flag off', async () => {
+  it('shows nothing when the list fails, a session announced or not', async () => {
     vi.mocked(fetchBreakoutSession).mockRejectedValue(
       new ApiError(404, { detail: 'Not found.' })
     )
     announce('s1')
-    const { rerender } = render(ui())
-    fireEvent.click(await screen.findByRole('button', { name: 'active.close' }))
+    render(ui())
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryState(['breakoutSession', 'room-1', 's1'])?.status
+      ).toBe('error')
+    )
+    expect(screen.queryByRole('button', { name: 'active.close' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'setup.open' })).toBeNull()
+  })
+
+  it('shows a closing session as closing and lets the host close it again', async () => {
+    announce(null)
+    vi.mocked(fetchBreakoutSession).mockResolvedValueOnce({
+      ...session,
+      status: 'closing',
+    })
+    render(ui())
+    const close = await screen.findByRole('button', { name: 'active.close' })
+    expect(screen.queryByText('active.closing')).not.toBeNull()
+    expect(close.hasAttribute('disabled')).toBe(false)
+
+    vi.mocked(fetchBreakoutSession).mockResolvedValueOnce(null)
+    fireEvent.click(close)
     await waitFor(() =>
       expect(closeBreakoutSession).toHaveBeenCalledWith('room-1', 's1')
     )
-
-    announce(null)
-    rerender(ui())
-    await waitFor(() =>
-      expect(
-        queryClient.getQueryState(['breakoutSession', 'room-1', null])?.status
-      ).toBe('error')
-    )
-    expect(screen.queryByRole('button', { name: 'setup.open' })).toBeNull()
+    await screen.findByRole('button', { name: 'setup.open' })
   })
 })

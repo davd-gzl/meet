@@ -1,4 +1,5 @@
 import { proxy } from 'valtio'
+import { MIN_ROOMS, type Assignments } from './utils/setup'
 
 export type MediaIntent = { camera: boolean; microphone: boolean }
 
@@ -19,7 +20,13 @@ type BreakoutState = {
   media: MediaIntent | null
   // Restored once the next connection is up.
   pendingMedia: MediaIntent | null
+  // Neither the held pass nor a new entry brought this browser back.
+  returnFailed: boolean
+  // The host's plan before Open, kept while the panel is closed.
+  setup: { roomCount: number; assignments: Assignments }
 }
+
+export const initialSetup = () => ({ roomCount: MIN_ROOMS, assignments: {} })
 
 const initialState = (): BreakoutState => ({
   room: null,
@@ -29,6 +36,8 @@ const initialState = (): BreakoutState => ({
   moveFailed: false,
   media: null,
   pendingMedia: null,
+  returnFailed: false,
+  setup: initialSetup(),
 })
 
 // In memory only: a reload rejoins the main meeting, whose metadata moves it again.

@@ -12,18 +12,21 @@ from django.db import IntegrityError
 
 import jwt
 import pytest
+from asgiref.sync import sync_to_async
 from livekit.api import TwirpError
 from rest_framework.test import APIClient
 
 from core import models
 from core.breakout import services
 from core.factories import RoomFactory, UserFactory, UserResourceAccessFactory
+from core.services import room_management
 from core.services.lobby import LobbyService
 from core.tests.guests import guest_request, signed_capability
 
 pytestmark = pytest.mark.django_db
 
 ACTIVE = models.BreakoutSessionStatusChoices.ACTIVE
+CLOSING = models.BreakoutSessionStatusChoices.CLOSING
 CLOSED = models.BreakoutSessionStatusChoices.CLOSED
 
 
@@ -196,6 +199,18 @@ def test_api_breakout_sessions_create_already_active(livekit, owner_room):
     livekit.room.create_room.assert_not_awaited()
 
 
+def test_api_breakout_sessions_create_while_closing(livekit, owner_room):
+    """A session still closing holds the meeting: a new one answers 409."""
+    room, client = owner_room
+    make_session(room, ["alice"])
+    models.BreakoutSession.objects.update(status=CLOSING)
+
+    response = client.post(url(room), payload(["alice"], ["bob"]), "json")
+
+    assert response.status_code == 409
+    livekit.room.create_room.assert_not_awaited()
+
+
 def test_api_breakout_sessions_create_media_server_fails(livekit, owner_room):
     """A room the media server refuses deletes the others and leaks nothing."""
     room, client = owner_room
@@ -290,7 +305,7 @@ def test_api_breakout_sessions_media_server_call_is_bounded(livekit, owner_room)
     livekit.room.create_room.side_effect = hang
     livekit.room.delete_room.side_effect = hang
 
-    with mock.patch.object(services, "MEDIA_SERVER_TIMEOUT_SECONDS", 0.05):
+    with mock.patch.object(room_management, "MEDIA_SERVER_TIMEOUT_SECONDS", 0.05):
         response = client.post(url(room), payload(["alice"], ["bob"]), "json")
 
     assert response.status_code == 503
@@ -301,7 +316,7 @@ def test_api_breakout_sessions_media_server_call_is_bounded(livekit, owner_room)
 
 
 def test_api_breakout_sessions_list(livekit, owner_room):
-    """The owner reads the active session only."""
+    """The owner reads the open session only."""
     room, client = owner_room
     make_session(room, ["alice"])
     models.BreakoutSession.objects.update(status=CLOSED)
@@ -314,6 +329,12 @@ def test_api_breakout_sessions_list(livekit, owner_room):
     assert [
         [p["identity"] for p in r["participants"]] for r in response.json()[0]["rooms"]
     ] == [["alice"], ["bob"]]
+
+    models.BreakoutSession.objects.filter(pk=session.pk).update(status=CLOSING)
+    response = client.get(url(room))
+    assert [(s["id"], s["status"]) for s in response.json()] == [
+        (str(session.id), "closing")
+    ]
 
 
 def test_api_breakout_sessions_list_empty_and_member(livekit, owner_room):
@@ -361,8 +382,8 @@ def test_api_breakout_sessions_close_room_already_gone(livekit, owner_room):
     assert response.status_code == 200
 
 
-def test_api_breakout_sessions_close_fails(livekit, owner_room):
-    """A failed delete keeps the session active, so closing again retries."""
+def test_api_breakout_sessions_close_fails_then_retries(livekit, owner_room):
+    """A failed delete leaves the session closing, and closing again finishes it."""
     room, client = owner_room
     session = make_session(room, ["alice"], ["bob"])
     livekit.room.delete_room.side_effect = TwirpError(
@@ -373,8 +394,49 @@ def test_api_breakout_sessions_close_fails(livekit, owner_room):
 
     assert response.status_code == 503
     assert "livekit.internal" not in response.content.decode()
-    session.refresh_from_db()
-    assert session.status == ACTIVE
+    assert [s["status"] for s in client.get(url(room)).json()] == ["closing"]
+
+    livekit.room.delete_room.side_effect = None
+    livekit.room.delete_room.reset_mock()
+    response = client.post(url(room, f"{session.id!s}/close/"))
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "closed"
+    assert livekit.room.delete_room.await_count == 2
+    assert client.get(url(room)).json() == []
+
+
+def test_api_breakout_sessions_join_during_close(livekit, owner_room):
+    """Closing is written before any media server call: join 404s, Open 409s."""
+    room, client = owner_room
+    user, member_client = logged_in(room)
+    session = make_session(room, [str(user.sub)], ["bob"])
+    own = session.rooms.get(name="Room 1")
+    during = {}
+
+    def compete():
+        join = url(room, f"{session.id!s}/rooms/{own.id!s}/join/")
+        during["join"] = member_client.post(join).status_code
+        during["assignment"] = member_client.get(
+            url(room, "current-assignment/")
+        ).status_code
+        during["open"] = client.post(
+            url(room), payload(["carol"], ["dave"]), "json"
+        ).status_code
+
+    list_rooms = livekit.room.list_rooms.return_value
+
+    async def compete_then_list(*args, **kwargs):
+        if not during:
+            await sync_to_async(compete)()
+        return list_rooms
+
+    livekit.room.list_rooms.side_effect = compete_then_list
+
+    response = client.post(url(room, f"{session.id!s}/close/"))
+
+    assert response.status_code == 200
+    assert during == {"join": 404, "assignment": 404, "open": 409}
 
 
 @pytest.mark.parametrize("main_room_live", [True, False])
@@ -382,7 +444,7 @@ def test_api_breakout_sessions_close_fails(livekit, owner_room):
 def test_api_breakout_sessions_close_lobby_admissions(
     mock_clear, livekit, owner_room, main_room_live
 ):
-    """Admissions kept for a meeting that ended during the session go at close."""
+    """Close leaves the meeting's admissions alone, live or not."""
     room, client = owner_room
     session = make_session(room, ["alice"], ["bob"])
     if not main_room_live:
@@ -391,10 +453,7 @@ def test_api_breakout_sessions_close_lobby_admissions(
     response = client.post(url(room, f"{session.id!s}/close/"))
 
     assert response.status_code == 200
-    if main_room_live:
-        mock_clear.assert_not_called()
-    else:
-        mock_clear.assert_called_once_with(room.id)
+    mock_clear.assert_not_called()
 
 
 def test_api_breakout_sessions_close_member(livekit, owner_room):
@@ -413,8 +472,8 @@ def test_api_breakout_sessions_close_member(livekit, owner_room):
 
 
 def test_api_breakout_sessions_flag_off(livekit, owner_room, settings):
-    """Flag off, every call answers 404 but close."""
-    settings.MEET_BREAKOUT_ROOMS_ENABLED = False
+    """Flag off, every call answers 404, close included."""
+    settings.BREAKOUT_ROOMS_ENABLED = False
     room, client = owner_room
     session = make_session(room, ["alice"], ["bob"])
     breakout_room = session.rooms.first()
@@ -424,8 +483,11 @@ def test_api_breakout_sessions_flag_off(livekit, owner_room, settings):
     assert client.get(url(room, "current-assignment/")).status_code == 404
     join = f"{session.id!s}/rooms/{breakout_room.id!s}/join/"
     assert client.post(url(room, join)).status_code == 404
-    assert client.post(url(room, f"{session.id!s}/close/")).status_code == 200
+    assert client.post(url(room, f"{session.id!s}/close/")).status_code == 404
     livekit.room.create_room.assert_not_awaited()
+    livekit.room.delete_room.assert_not_awaited()
+    session.refresh_from_db()
+    assert session.status == ACTIVE
 
 
 # Current assignment and join

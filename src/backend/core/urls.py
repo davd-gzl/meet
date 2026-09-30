@@ -2,13 +2,14 @@
 
 from django.conf import settings
 from django.urls import include, path
+from django.urls.converters import UUIDConverter
 
 from lasuite.oidc_login.urls import urlpatterns as oidc_urls
 from rest_framework.routers import DefaultRouter, SimpleRouter
 
 from core.addons import viewsets as addons_viewsets
 from core.api import get_frontend_configuration, viewsets
-from core.breakout.urls import urlpatterns as breakout_urls
+from core.breakout import viewsets as breakout_viewsets
 from core.external_api import viewsets as external_viewsets
 from core.roomkit import viewsets as roomkit_viewsets
 
@@ -36,6 +37,11 @@ router.register(
     viewsets.DiagnosticsViewSet,
     basename="diagnostics",
 )
+router.register(
+    f"rooms/(?P<room_id>{UUIDConverter.regex})/breakout-sessions",
+    breakout_viewsets.BreakoutSessionViewSet,
+    basename="breakout-sessions",
+)
 
 # - External API
 external_router = SimpleRouter()
@@ -58,10 +64,6 @@ urlpatterns = [
                 *router.urls,
                 *oidc_urls,
                 path("config/", get_frontend_configuration, name="config"),
-                path(
-                    "rooms/<uuid:room_id>/breakout-sessions/",
-                    include(breakout_urls),
-                ),
             ]
         ),
     ),

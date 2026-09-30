@@ -13,6 +13,7 @@ from django.utils import timezone
 from livekit import api
 
 from core import models
+from core.breakout import services as breakout_services
 from core.recording.enums import RecordingWorkerEvent
 from core.recording.services.metadata_collector import (
     MetadataCollectorException,
@@ -318,19 +319,24 @@ class LiveKitEventsService:
 
         self.presence_cache.clear_room(room_id)
 
-        if models.BreakoutSession.objects.filter(
-            room_id=room_id, status=models.BreakoutSessionStatusChoices.ACTIVE
-        ).exists():
-            # Everyone may be in breakout rooms; closing the session clears these.
-            logger.info("Keeping lobby admissions of room %s for its breakout", room_id)
-            return
-
         try:
             self.lobby_service.clear_room_cache(room_id)
         except Exception as e:
             raise ActionFailedError(
                 f"Failed to clear room cache for room {room_id}"
             ) from e
+
+        # Hosts are never moved, so an empty meeting is a split nobody will close.
+        session = models.BreakoutSession.objects.filter(
+            room_id=room_id, status__in=models.OPEN_BREAKOUT_STATUSES
+        ).first()
+        if session is not None:
+            try:
+                breakout_services.close_session(session)
+            except breakout_services.MediaServerError as e:
+                raise ActionFailedError(
+                    f"Failed to close breakout session of room {room_id}"
+                ) from e
 
     def _handle_participant_left(self, data):
         """Handle 'participant_left': invalidate the presence cache.

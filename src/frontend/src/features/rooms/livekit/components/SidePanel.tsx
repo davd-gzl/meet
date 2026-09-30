@@ -13,7 +13,6 @@ import { Effects } from './effects/Effects'
 import { Admin } from './Admin'
 import { Tools } from './Tools'
 import { Info } from './Info'
-import { BreakoutPanel } from '@/features/breakout/components/BreakoutPanel'
 import { HStack } from '@/styled-system/jsx'
 import { useReactionsToolbar } from '@/features/reactions/hooks/useReactionsToolbar'
 import { useRestoreFocus } from '@/hooks/useRestoreFocus'
@@ -176,7 +175,6 @@ export const SidePanel = () => {
     isToolsOpen,
     isAdminOpen,
     isInfoOpen,
-    isBreakoutOpen,
     isSubPanelOpen,
     activeSubPanelId,
   } = useSidePanel()
@@ -239,9 +237,6 @@ export const SidePanel = () => {
       </Panel>
       <Panel isOpen={isInfoOpen}>
         <Info />
-      </Panel>
-      <Panel isOpen={isBreakoutOpen}>
-        <BreakoutPanel />
       </Panel>
     </StyledSidePanel>
   )

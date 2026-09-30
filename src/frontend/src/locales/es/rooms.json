@@ -335,8 +335,7 @@
         "exit": "Salir del modo de pantalla completa"
       },
       "support": "Contactar con el soporte",
-      "documentation": "Documentación",
-      "breakout": "Salas para grupos"
+      "documentation": "Documentación"
     }
   },
   "effects": {
@@ -456,6 +455,10 @@
       "screenRecording": {
         "title": "Grabar",
         "body": "Grabar la reunión en vídeo."
+      },
+      "breakout": {
+        "title": "Salas para grupos",
+        "body": "Divide la reunión en grupos más pequeños."
       }
     }
   },
@@ -839,13 +842,16 @@
     },
     "active": {
       "empty": "Nadie asignado",
-      "close": "Cerrar salas"
+      "close": "Cerrar salas",
+      "closing": "Cerrando las salas…"
     },
     "participant": {
       "currentRoom": "Estás en {{room}}",
       "moving": "Pasando a {{room}}…",
       "returning": "Volviendo a la reunión principal…",
-      "moveFailed": "No se pudo moverte a tu sala"
+      "moveFailed": "No se pudo moverte a tu sala",
+      "returnFailed": "No se pudo volver a la reunión principal",
+      "rejoin": "Volver a unirse"
     }
   }
 }

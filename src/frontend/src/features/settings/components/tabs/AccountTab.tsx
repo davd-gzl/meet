@@ -12,6 +12,7 @@ import { saveUsername } from '@/stores/user'
 import { logout } from '@/features/auth/utils/logout'
 import { useConfig } from '@/api/useConfig'
 import { reportError } from '@/features/analytics/telemetry'
+import { useIsInBreakoutRoom } from '@/features/breakout/hooks/useIsInBreakoutRoom'
 
 export type AccountTabProps = Pick<DialogProps, 'onOpenChange'> &
   Pick<TabPanelProps, 'id'>
@@ -23,6 +24,11 @@ export const AccountTab = ({ id, onOpenChange }: AccountTabProps) => {
   const { user, isLoggedIn } = useUser()
 
   const { renameParticipant } = useRenameParticipant()
+  // A rename addresses the main meeting, which a breakout room is not.
+  const isInBreakoutRoom = useIsInBreakoutRoom()
+  const canEditName =
+    !isInBreakoutRoom &&
+    (!isLoggedIn || data?.authenticated_users_can_edit_display_name)
 
   const [name, setName] = useState(room?.localParticipant.name ?? '')
   const userDisplay =
@@ -32,7 +38,7 @@ export const AccountTab = ({ id, onOpenChange }: AccountTabProps) => {
 
   const handleOnSubmit = async () => {
     try {
-      if (room) await renameParticipant(name)
+      if (room && !isInBreakoutRoom) await renameParticipant(name)
       saveUsername(name)
       onOpenChange?.(false) // only close on success
     } catch (error) {
@@ -48,7 +54,7 @@ export const AccountTab = ({ id, onOpenChange }: AccountTabProps) => {
   return (
     <TabPanel padding={'md'} flex id={id}>
       <H lvl={2}>{t('account.heading')}</H>
-      {(!isLoggedIn || data?.authenticated_users_can_edit_display_name) && (
+      {canEditName && (
         <Field
           type="text"
           label={t('account.nameLabel')}

@@ -4,7 +4,6 @@
 
 import asyncio
 import contextlib
-import json
 from datetime import timedelta
 from logging import getLogger
 from uuid import uuid4
@@ -16,22 +15,19 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from asgiref.sync import async_to_sync
-from livekit.api import (
-    CreateRoomRequest,
-    DeleteRoomRequest,
-    ListRoomsRequest,
-    TwirpError,
-    UpdateRoomMetadataRequest,
-)
+from livekit.api import CreateRoomRequest, DeleteRoomRequest, TwirpError
 from rest_framework import exceptions
 
 from core import models, utils
-from core.services.lobby import LobbyService
+from core.services.room_management import (
+    RoomManagement,
+    RoomNotFoundException,
+    bounded,
+)
 
 logger = getLogger(__name__)
 
 METADATA_KEY = "breakout"
-MEDIA_SERVER_TIMEOUT_SECONDS = 5
 # How long the media server keeps a breakout room nobody has joined yet.
 EMPTY_TIMEOUT_SECONDS = 300
 # Closing deletes the rooms, and an unspent pass could recreate one until it expires.
@@ -52,17 +48,11 @@ class MediaServerError(exceptions.APIException):
     default_detail = _("The media server could not be reached. Try again.")
 
 
-async def _bounded(call):
-    """Await one media server call under its own deadline."""
-    async with asyncio.timeout(MEDIA_SERVER_TIMEOUT_SECONDS):
-        return await call
-
-
 async def _delete_rooms(lkapi, names):
     """Delete media server rooms, a room already gone counting as deleted."""
     results = await asyncio.gather(
         *(
-            _bounded(lkapi.room.delete_room(DeleteRoomRequest(room=name)))
+            bounded(lkapi.room.delete_room(DeleteRoomRequest(room=name)))
             for name in names
         ),
         return_exceptions=True,
@@ -78,7 +68,7 @@ async def _create_rooms(lkapi, names):
     """Create media server rooms, deleting them all if any one fails."""
     results = await asyncio.gather(
         *(
-            _bounded(
+            bounded(
                 lkapi.room.create_room(
                     CreateRoomRequest(name=name, empty_timeout=EMPTY_TIMEOUT_SECONDS)
                 )
@@ -91,35 +81,6 @@ async def _create_rooms(lkapi, names):
     if errors:
         await _delete_rooms(lkapi, names)
         raise errors[0]
-
-
-async def _write_metadata(lkapi, room_name, value):
-    """Set the breakout key on a room's metadata, or remove it when value is None.
-
-    Returns False when the room is not live on the media server.
-    """
-    response = await _bounded(
-        lkapi.room.list_rooms(ListRoomsRequest(names=[room_name]))
-    )
-    if not response.rooms:
-        return False
-    metadata = json.loads(response.rooms[0].metadata or "{}")
-    metadata.pop(METADATA_KEY, None)
-    if value is not None:
-        metadata[METADATA_KEY] = value
-    await _bounded(
-        lkapi.room.update_room_metadata(
-            UpdateRoomMetadataRequest(room=room_name, metadata=json.dumps(metadata))
-        )
-    )
-    return True
-
-
-async def _close_media(lkapi, room_name, names):
-    """Remove the signal before deleting the rooms, so nobody returning moves again."""
-    is_live = await _write_metadata(lkapi, room_name, None)
-    await _delete_rooms(lkapi, names)
-    return is_live
 
 
 def _run(step, *args):
@@ -139,6 +100,18 @@ def _run(step, *args):
         raise MediaServerError() from error
 
 
+def _write_signal(room_id, **changes):
+    """Change the meeting's metadata through its one writer; False when it is not live."""
+    try:
+        RoomManagement.update_metadata(str(room_id), **changes)
+    except RoomNotFoundException:
+        return False
+    except Exception as error:
+        logger.exception("Breakout signal write to room %s failed", room_id)
+        raise MediaServerError() from error
+    return True
+
+
 def _discard_rooms(names):
     """Best-effort cleanup; a room left behind expires after EMPTY_TIMEOUT_SECONDS."""
     try:
@@ -150,7 +123,7 @@ def _discard_rooms(names):
 def open_session(room, user, rooms):
     """Create the media server rooms, then the rows, then signal the meeting."""
     active = models.BreakoutSessionStatusChoices.ACTIVE
-    if room.breakout_sessions.filter(status=active).exists():
+    if room.breakout_sessions.filter(status__in=models.OPEN_BREAKOUT_STATUSES).exists():
         raise SessionAlreadyActive()
 
     session_id = uuid4()
@@ -192,12 +165,12 @@ def open_session(room, user, rooms):
 
     signal = {"session_id": str(session.id), "status": active}
     try:
-        is_live = _run(_write_metadata, str(room.id), signal)
+        is_live = _write_signal(room.id, metadata={METADATA_KEY: signal})
     except MediaServerError:
         is_live = False
         # A write cut off by its deadline may still have landed; take it back.
         with contextlib.suppress(MediaServerError):
-            _run(_write_metadata, str(room.id), None)
+            _write_signal(room.id, remove_keys=[METADATA_KEY])
     if not is_live:
         session.delete()
         _discard_rooms(names)
@@ -206,21 +179,25 @@ def open_session(room, user, rooms):
 
 
 def close_session(session):
-    """Remove the signal, delete the rooms, then mark the session closed.
+    """Mark the session closing, remove the signal, delete the rooms, then mark it closed.
 
-    Closing a closed session does nothing, so a failed close is retried by closing again.
+    Closing a closed session does nothing. A close that fails leaves the session
+    closing, and closing it again runs the media server calls again.
     """
-    if session.status == models.BreakoutSessionStatusChoices.CLOSED:
+    statuses = models.BreakoutSessionStatusChoices
+    models.BreakoutSession.objects.filter(pk=session.pk, status=statuses.ACTIVE).update(
+        status=statuses.CLOSING, updated_at=timezone.now()
+    )
+    session.refresh_from_db(fields=["status", "closed_at", "updated_at"])
+    if session.status == statuses.CLOSED:
         return session
-    names = list(session.rooms.values_list("livekit_room_name", flat=True))
-    is_live = _run(_close_media, str(session.room_id), names)
 
-    session.status = models.BreakoutSessionStatusChoices.CLOSED
+    _write_signal(session.room_id, remove_keys=[METADATA_KEY])
+    _run(_delete_rooms, list(session.rooms.values_list("livekit_room_name", flat=True)))
+
+    session.status = statuses.CLOSED
     session.closed_at = timezone.now()
     session.save(update_fields=["status", "closed_at", "updated_at"])
-    if not is_live:
-        # The meeting ended while the session was open, and room_finished kept these.
-        LobbyService().clear_room_cache(session.room_id)
     return session
 
 

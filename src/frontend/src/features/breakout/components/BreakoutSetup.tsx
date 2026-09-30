@@ -1,14 +1,15 @@
-import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useRemoteParticipants } from '@livekit/components-react'
 import { RoomEvent } from 'livekit-client'
 import { useTranslation } from 'react-i18next'
+import { useSnapshot } from 'valtio'
 import { RiShuffleLine } from '@remixicon/react'
 import { css } from '@/styled-system/css'
 import { Button, Text } from '@/primitives'
 import { Select } from '@/primitives/Select'
 import { queryClient } from '@/api/queryClient'
 import { breakoutSessionKey, createBreakoutSession } from '../api'
+import { breakoutStore, initialSetup } from '../store'
 import {
   MAX_ROOMS,
   MIN_ROOMS,
@@ -16,7 +17,6 @@ import {
   countUnassigned,
   isAssignable,
   shuffleAssignments,
-  type Assignments,
 } from '../utils/setup'
 
 const UNASSIGNED = -1
@@ -27,8 +27,8 @@ const ROOM_COUNTS = Array.from(
 
 export const BreakoutSetup = ({ roomId }: { roomId: string }) => {
   const { t } = useTranslation('rooms', { keyPrefix: 'breakout' })
-  const [roomCount, setRoomCount] = useState(MIN_ROOMS)
-  const [assignments, setAssignments] = useState<Assignments>({})
+  // In the store, so switching panels keeps the plan.
+  const { roomCount, assignments } = useSnapshot(breakoutStore).setup
 
   // Joins and leaves always update; a name or a role is all else the list reads.
   const people = useRemoteParticipants({
@@ -54,6 +54,9 @@ export const BreakoutSetup = ({ roomId }: { roomId: string }) => {
       createBreakoutSession(roomId, {
         rooms: buildRooms(roomNames, people, assignments),
       }),
+    onSuccess: () => {
+      breakoutStore.setup = initialSetup()
+    },
     // An open that lands changes the metadata, and so the query key.
     onError: () =>
       queryClient.invalidateQueries({ queryKey: breakoutSessionKey(roomId) }),
@@ -66,7 +69,9 @@ export const BreakoutSetup = ({ roomId }: { roomId: string }) => {
         label={t('setup.roomCount')}
         items={ROOM_COUNTS.map((n) => ({ value: n, label: String(n) }))}
         selectedKey={roomCount}
-        onSelectionChange={(key) => setRoomCount(Number(key))}
+        onSelectionChange={(key) =>
+          (breakoutStore.setup.roomCount = Number(key))
+        }
       />
       <div
         className={css({
@@ -87,7 +92,10 @@ export const BreakoutSetup = ({ roomId }: { roomId: string }) => {
           size="sm"
           isDisabled={people.length === 0}
           onPress={() =>
-            setAssignments(shuffleAssignments(identities, roomCount))
+            (breakoutStore.setup.assignments = shuffleAssignments(
+              identities,
+              roomCount
+            ))
           }
         >
           <RiShuffleLine size={16} aria-hidden />
@@ -123,10 +131,7 @@ export const BreakoutSetup = ({ roomId }: { roomId: string }) => {
                   items={roomItems}
                   selectedKey={index < roomCount ? index : UNASSIGNED}
                   onSelectionChange={(key) =>
-                    setAssignments((previous) => ({
-                      ...previous,
-                      [p.identity]: Number(key),
-                    }))
+                    (breakoutStore.setup.assignments[p.identity] = Number(key))
                   }
                 />
               </div>

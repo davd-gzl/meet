@@ -23,13 +23,18 @@ const ActiveSession = ({
   const { t } = useTranslation('rooms', { keyPrefix: 'breakout' })
   const close = useMutation({
     mutationFn: () => closeBreakoutSession(roomId, session.id),
-    // A close that lands changes the metadata, and so the query key.
-    onError: () =>
+    // The metadata changes when closing starts, not when it ends.
+    onSettled: () =>
       queryClient.invalidateQueries({ queryKey: breakoutSessionKey(roomId) }),
   })
 
   return (
     <>
+      {session.status === 'closing' && (
+        <Text variant="note" role="status">
+          {t('active.closing')}
+        </Text>
+      )}
       <ul
         className={css({
           display: 'flex',
@@ -69,22 +74,19 @@ export const BreakoutPanel = () => {
   // Keyed on the announced session, so an open or close elsewhere refetches.
   const announced: string | null =
     useRoomMetadata()?.breakout?.session_id ?? null
-  const { data, isPending, isError } = useQuery({
+  const {
+    data: session,
+    isPending,
+    isError,
+  } = useQuery({
     queryKey: [...breakoutSessionKey(roomId), announced],
     queryFn: () => fetchBreakoutSession(roomId as string),
     enabled: !!roomId,
     retry: false,
     placeholderData: keepPreviousData,
   })
-  // The list answers 404 with the flag off; the metadata still allows a close.
-  const session: BreakoutSession | null =
-    data ??
-    (isError && announced
-      ? { id: announced, status: 'active', rooms: [] }
-      : null)
-
-  // A failed list with nothing announced: Open would fail as well, so no form.
-  if (!roomId || isPending || (isError && !session)) return null
+  // A failed list: Open would fail as well, so no form.
+  if (!roomId || isPending || isError) return null
 
   return (
     <Div

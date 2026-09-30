@@ -1092,7 +1092,15 @@ class BreakoutSessionStatusChoices(models.TextChoices):
     """Breakout session status choices."""
 
     ACTIVE = "active", _("Active")
+    CLOSING = "closing", _("Closing")
     CLOSED = "closed", _("Closed")
+
+
+# A session holds its meeting until it is closed, the closing time included.
+OPEN_BREAKOUT_STATUSES = [
+    BreakoutSessionStatusChoices.ACTIVE,
+    BreakoutSessionStatusChoices.CLOSING,
+]
 
 
 class BreakoutSession(BaseModel):
@@ -1127,8 +1135,8 @@ class BreakoutSession(BaseModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["room"],
-                condition=models.Q(status=BreakoutSessionStatusChoices.ACTIVE),
-                name="unique_active_breakout_session_per_room",
+                condition=models.Q(status__in=OPEN_BREAKOUT_STATUSES),
+                name="unique_open_breakout_session_per_room",
             )
         ]
 

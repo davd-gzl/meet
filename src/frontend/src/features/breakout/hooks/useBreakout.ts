@@ -5,7 +5,6 @@ import {
   useRoomContext,
 } from '@livekit/components-react'
 import { ConnectionState, type Room } from 'livekit-client'
-import { requestEntry } from '@/features/rooms/api/requestEntry'
 import { reportError } from '@/features/analytics/telemetry'
 import { useRoomMetadata } from '@/features/recording/hooks/useRoomMetadata'
 import { fetchBreakoutAssignment, joinBreakoutRoom } from '../api'
@@ -44,27 +43,6 @@ const moveToAssignedRoom = async (
     })
     throw error
   }
-}
-
-// Called once the breakout room is gone; the page reloads when no pass comes back.
-export const returnToMainRoom = async (
-  slug: string,
-  username: string,
-  connect: Connect
-) => {
-  // A failed join reaches both onDisconnected and onError; return once.
-  if (breakoutStore.target === 'main' && breakoutStore.room) return
-  breakoutStore.target = 'main'
-  breakoutStore.pendingMedia = breakoutStore.media
-  const entry = await requestEntry({ roomId: slug, username }).catch(
-    (error) => {
-      reportError('generic_failure', error, { path: 'breakout_return' })
-      return null
-    }
-  )
-  if (!entry?.livekit) return window.location.reload()
-  breakoutStore.room = null
-  connect(entry.livekit.token)
 }
 
 export const useBreakout = (mainRoomId: string, connect: Connect) => {

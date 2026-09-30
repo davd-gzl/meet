@@ -7,7 +7,7 @@ export type BreakoutPerson = { identity: string; name: string }
 
 export type BreakoutSession = {
   id: string
-  status: 'active' | 'closed'
+  status: 'active' | 'closing' | 'closed'
   rooms: { id: string; name: string; participants: BreakoutPerson[] }[]
 }
 
@@ -27,7 +27,9 @@ export const breakoutSessionKey = (roomId?: string) => [
   roomId,
 ]
 
-export const fetchBreakoutSession = async (roomId: string) => {
+export const fetchBreakoutSession = async (
+  roomId: string
+): Promise<BreakoutSession | null> => {
   const sessions = await fetchApi<BreakoutSession[]>(sessionsUrl(roomId))
   return sessions[0] ?? null
 }

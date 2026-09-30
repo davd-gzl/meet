@@ -34,6 +34,7 @@ import { useSize } from '../../hooks/useResizeObserver'
 import { useRegisterKeyboardShortcut } from '@/features/shortcuts/useRegisterKeyboardShortcut'
 import { useRaisedHand } from '@/features/rooms/livekit/hooks/useRaisedHand'
 import { useRoomContext } from '@livekit/components-react'
+import { useIsInBreakoutRoom } from '@/features/breakout/hooks/useIsInBreakoutRoom'
 
 // Hand collapses first, then reactions; hidden toggles move into the menu.
 const COLLAPSIBLE_COUNT = 2
@@ -90,9 +91,11 @@ export function MobileControlBar({
   const { toggleRaisedHand } = useRaisedHand({
     participant: room.localParticipant,
   })
+  const isInBreakoutRoom = useIsInBreakoutRoom()
   useRegisterKeyboardShortcut({
     id: 'raise-hand',
     handler: toggleRaisedHand,
+    isDisabled: isInBreakoutRoom,
   })
   useRegisterKeyboardShortcut({
     id: 'reaction',

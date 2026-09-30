@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
 import { ConnectionError, DisconnectReason } from 'livekit-client'
 import { Conference } from './Conference'
 import type { ApiRoom } from '../api/ApiRoom'
-import { requestEntry } from '@/features/rooms/api/requestEntry'
+import { ApiLobbyStatus, requestEntry } from '@/features/rooms/api/requestEntry'
 import { saveProcessorConfig } from '@/stores/userChoices'
 import { breakoutStore, resetBreakout } from '@/features/breakout/store'
 import { ProcessorType } from '@/features/rooms/livekit/components/blur'
@@ -15,6 +15,7 @@ import { ProcessorType } from '@/features/rooms/livekit/components/blur'
 const h = vi.hoisted(() => ({
   props: {} as Record<string, any>,
   connect: null as null | ((token: string) => void),
+  rejoin: null as null | (() => void),
   rooms: [] as any[],
 }))
 
@@ -63,8 +64,12 @@ vi.mock('@/features/analytics/telemetry', () => ({
   reportError: vi.fn(),
 }))
 vi.mock('@/features/breakout/components/BreakoutParticipant', () => ({
-  BreakoutParticipant: (p: { connect: (t: string) => void }) => {
+  BreakoutParticipant: (p: {
+    connect: (t: string) => void
+    onRejoin: () => void
+  }) => {
     h.connect = p.connect
+    h.rejoin = p.onRejoin
     return null
   },
 }))
@@ -90,7 +95,8 @@ vi.mock('@/navigation/navigateTo', () => ({ navigateTo: vi.fn() }))
 vi.mock('@/features/notifications/utils', () => ({
   notifyAutoMutedOnJoin: vi.fn(),
 }))
-vi.mock('@/features/rooms/api/requestEntry', () => ({
+vi.mock('@/features/rooms/api/requestEntry', async (orig) => ({
+  ...(await orig<typeof import('@/features/rooms/api/requestEntry')>()),
   requestEntry: vi.fn(async () => ({
     status: 'accepted',
     livekit: { url: 'https://lk.test', room: 'main-id', token: 'main-token-2' },
@@ -125,6 +131,11 @@ const enterBreakout = () =>
 
 afterEach(async () => {
   cleanup()
+  vi.mocked(requestEntry).mockClear()
+  vi.mocked(requestEntry).mockImplementation(async () => ({
+    status: ApiLobbyStatus.ACCEPTED,
+    livekit: { url: 'https://lk.test', room: 'main-id', token: 'main-token-2' },
+  }))
   resetBreakout()
   saveProcessorConfig(undefined)
   await flush()
@@ -149,8 +160,60 @@ describe('Conference during a breakout move', () => {
       )
     })
     await flush()
-    expect(h.props.token).toBe('main-token-2')
+    expect(h.props.token).toBe('t')
+    expect(vi.mocked(requestEntry)).not.toHaveBeenCalled()
+    expect(h.rooms.length - roomsBefore).toBe(1)
+  })
+
+  it('returns with the main-meeting pass it holds, asking nothing', async () => {
+    vi.mocked(requestEntry).mockRejectedValue(new Error('lobby down'))
+    mount()
+    await flush()
+    await enterBreakout()
+    const roomsBefore = h.rooms.length
+    await act(async () => h.props.onDisconnected(DisconnectReason.ROOM_DELETED))
+    await flush()
+    expect(h.props.token).toBe('t')
+    expect(h.rooms.length - roomsBefore).toBe(1)
+    expect(vi.mocked(requestEntry)).not.toHaveBeenCalled()
+    expect(breakoutStore.room).toBeNull()
+  })
+
+  it('asks for entry only once the held pass is refused', async () => {
+    mount()
+    await flush()
+    await enterBreakout()
+    await act(async () => h.props.onDisconnected(DisconnectReason.ROOM_DELETED))
+    await flush()
+    expect(h.props.token).toBe('t')
+    expect(vi.mocked(requestEntry)).not.toHaveBeenCalled()
+    await act(async () =>
+      h.props.onError(ConnectionError.notAllowed('token expired', 401))
+    )
+    await flush()
     expect(vi.mocked(requestEntry)).toHaveBeenCalledTimes(1)
+    expect(h.props.token).toBe('main-token-2')
+  })
+
+  it('offers a rejoin instead of reloading when entry fails too', async () => {
+    vi.mocked(requestEntry).mockRejectedValue(new Error('lobby down'))
+    mount()
+    await flush()
+    await enterBreakout()
+    await act(async () => h.props.onDisconnected(DisconnectReason.ROOM_DELETED))
+    await flush()
+    await act(async () =>
+      h.props.onError(ConnectionError.notAllowed('token expired', 401))
+    )
+    await flush()
+    expect(breakoutStore).toMatchObject({ returnFailed: true, target: null })
+    expect(vi.mocked(requestEntry)).toHaveBeenCalledTimes(1)
+
+    const roomsBefore = h.rooms.length
+    await act(async () => h.rejoin!())
+    await flush()
+    expect(breakoutStore).toMatchObject({ returnFailed: false, target: 'main' })
+    expect(h.props.token).toBe('t')
     expect(h.rooms.length - roomsBefore).toBe(1)
   })
 

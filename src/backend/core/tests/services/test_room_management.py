@@ -1,17 +1,39 @@
 """Tests for the RoomManagement service."""
 
+import asyncio
+import json
+import threading
+import uuid
 from unittest import mock
+
+from django.core.cache import cache
 
 import pytest
 from livekit.api import TwirpError
 
 from core.factories import RoomFactory
 from core.models import RoomAccessLevel
+from core.services import room_management
 from core.services.room_management import (
     RoomManagement,
     RoomManagementException,
     RoomNotFoundException,
 )
+
+
+def fake_livekit(list_rooms=None, update_room_metadata=None, delete_room=None):
+    """A LiveKit client whose room service calls are the given coroutines."""
+    client = mock.MagicMock()
+    client.aclose = mock.AsyncMock()
+    client.room.list_rooms = mock.AsyncMock(side_effect=list_rooms)
+    client.room.update_room_metadata = mock.AsyncMock(side_effect=update_room_metadata)
+    client.room.delete_room = mock.AsyncMock(side_effect=delete_room)
+    return client
+
+
+async def hang(*args, **kwargs):
+    """A media server call that never answers."""
+    await asyncio.sleep(60)
 
 
 @mock.patch("core.services.room_management.utils.create_livekit_client")
@@ -79,3 +101,99 @@ def test_sync_room_metadata_pushes_configuration_and_access_level(mock_update_me
             "access_level": RoomAccessLevel.RESTRICTED,
         },
     )
+
+
+def test_update_metadata_concurrent_writers_keep_both_keys():
+    """Two writers of one room take turns, so neither drops the other's key."""
+    room_name = str(uuid.uuid4())
+    state = {"metadata": "{}"}
+    both_read = threading.Barrier(2)
+
+    async def list_rooms(request):
+        read = state["metadata"]
+        # Without a lock both writers read here before either writes.
+        try:
+            both_read.wait(timeout=0.5)
+        except threading.BrokenBarrierError:
+            pass
+        return mock.Mock(rooms=[mock.Mock(metadata=read)])
+
+    async def update_room_metadata(request):
+        state["metadata"] = request.metadata
+
+    client = fake_livekit(list_rooms, update_room_metadata)
+    writers = [
+        threading.Thread(
+            target=RoomManagement.update_metadata,
+            args=(room_name, {key: "on"}),
+        )
+        for key in ("recording_status", "breakout")
+    ]
+    with mock.patch.object(
+        room_management.utils, "create_livekit_client", return_value=client
+    ):
+        for writer in writers:
+            writer.start()
+        for writer in writers:
+            writer.join()
+
+    assert json.loads(state["metadata"]) == {"recording_status": "on", "breakout": "on"}
+
+
+@pytest.mark.parametrize("hanging", ["list_rooms", "update_room_metadata"])
+def test_update_metadata_bounded(hanging):
+    """A media server that never answers costs one deadline, then a clean failure."""
+    client = fake_livekit(
+        list_rooms=None if hanging != "list_rooms" else hang,
+        update_room_metadata=None if hanging != "update_room_metadata" else hang,
+    )
+    client.room.list_rooms.return_value = mock.Mock(rooms=[mock.Mock(metadata="{}")])
+
+    with (
+        mock.patch.object(
+            room_management.utils, "create_livekit_client", return_value=client
+        ),
+        mock.patch.object(room_management, "MEDIA_SERVER_TIMEOUT_SECONDS", 0.05),
+        pytest.raises(RoomManagementException),
+    ):
+        RoomManagement.update_metadata(str(uuid.uuid4()), {"key": "value"})
+
+    client.aclose.assert_awaited_once()
+
+
+def test_delete_room_bounded():
+    """A delete the media server never answers fails after its deadline."""
+    client = fake_livekit(delete_room=hang)
+
+    with (
+        mock.patch.object(
+            room_management.utils, "create_livekit_client", return_value=client
+        ),
+        mock.patch.object(room_management, "MEDIA_SERVER_TIMEOUT_SECONDS", 0.05),
+        pytest.raises(RoomManagementException),
+    ):
+        RoomManagement.delete_room("room-abc")
+
+    client.aclose.assert_awaited_once()
+
+
+def test_update_metadata_lock_busy():
+    """A room whose metadata another writer holds fails without calling LiveKit."""
+    room_name = str(uuid.uuid4())
+    client = fake_livekit()
+    held = cache.lock(f"room-metadata:{room_name}", timeout=5)
+    assert held.acquire(blocking=False)
+
+    try:
+        with (
+            mock.patch.object(
+                room_management.utils, "create_livekit_client", return_value=client
+            ),
+            mock.patch.object(room_management, "MEDIA_SERVER_TIMEOUT_SECONDS", 0.05),
+            pytest.raises(RoomManagementException),
+        ):
+            RoomManagement.update_metadata(room_name, {"key": "value"})
+    finally:
+        held.release()
+
+    client.room.list_rooms.assert_not_awaited()

@@ -335,8 +335,7 @@
         "exit": "Quitter le mode plein écran"
       },
       "support": "Contacter l'aide",
-      "documentation": "Documentation",
-      "breakout": "Salles de sous-groupe"
+      "documentation": "Documentation"
     }
   },
   "effects": {
@@ -457,6 +456,10 @@
       "screenRecording": {
         "title": "Enregistrer",
         "body": "Enregistrer la réunion en vidéo."
+      },
+      "breakout": {
+        "title": "Salles de sous-groupe",
+        "body": "Répartir la réunion en petits groupes."
       }
     }
   },
@@ -844,13 +847,16 @@
     },
     "active": {
       "empty": "Personne n'est assigné",
-      "close": "Fermer les salles"
+      "close": "Fermer les salles",
+      "closing": "Fermeture des salles…"
     },
     "participant": {
       "currentRoom": "Vous êtes dans {{room}}",
       "moving": "Déplacement vers {{room}}…",
       "returning": "Retour à la réunion principale…",
-      "moveFailed": "Impossible de vous déplacer vers votre salle"
+      "moveFailed": "Impossible de vous déplacer vers votre salle",
+      "returnFailed": "Impossible de vous ramener dans la réunion principale",
+      "rejoin": "Rejoindre"
     }
   }
 }

@@ -12,6 +12,9 @@ import {
   ScreenRecordingSidePanel,
 } from '@/features/recording'
 import { useConfig } from '@/api/useConfig'
+import { RiLayoutGridLine } from '@remixicon/react'
+import { BreakoutPanel } from '@/features/breakout/components/BreakoutPanel'
+import { useCanManageBreakout } from '@/features/breakout/hooks/useCanManageBreakout'
 
 export interface ToolsButtonProps {
   icon: ReactNode
@@ -98,6 +101,7 @@ export const Tools = () => {
   const {
     openTranscript,
     openScreenRecording,
+    openBreakout,
     activeSubPanelId,
     isToolsOpen,
     isSidePanelOpen,
@@ -129,11 +133,15 @@ export const Tools = () => {
     RecordingMode.ScreenRecording
   )
 
+  const canManageBreakout = useCanManageBreakout()
+
   switch (activeSubPanelId) {
     case SubPanelId.TRANSCRIPT:
       return <TranscriptSidePanel />
     case SubPanelId.SCREEN_RECORDING:
       return <ScreenRecordingSidePanel />
+    case SubPanelId.BREAKOUT:
+      return <BreakoutPanel />
     default:
       break
   }
@@ -186,6 +194,14 @@ export const Tools = () => {
           title={t('tools.screenRecording.title')}
           description={t('tools.screenRecording.body')}
           onPress={() => openScreenRecording()}
+        />
+      )}
+      {canManageBreakout && (
+        <ToolButton
+          icon={<RiLayoutGridLine size={24} />}
+          title={t('tools.breakout.title')}
+          description={t('tools.breakout.body')}
+          onPress={() => openBreakout()}
         />
       )}
     </Div>
