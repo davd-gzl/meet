@@ -40,7 +40,7 @@ class BreakoutSessionViewSet(viewsets.GenericViewSet):
         self.check_object_permissions(self.request, room)
         return room
 
-    def _get_assignment(self, room, **filters):
+    def _get_assignment(self, room):
         """The caller's assignment in the meeting's active session, or 404."""
         request = self.request
         assignments = models.BreakoutAssignment.objects.select_related("breakout_room")
@@ -55,7 +55,6 @@ class BreakoutSessionViewSet(viewsets.GenericViewSet):
             session__room=room,
             session__status=models.BreakoutSessionStatusChoices.ACTIVE,
             identity=LobbyService.participant_identity(request, room.id),
-            **filters,
         )
 
     @FeatureFlag.require("breakout_rooms")
@@ -90,33 +89,12 @@ class BreakoutSessionViewSet(viewsets.GenericViewSet):
 
     @decorators.action(
         detail=False,
-        methods=["get"],
-        url_path="current-assignment",
-        permission_classes=[drf_permissions.AllowAny],
-    )
-    @FeatureFlag.require("breakout_rooms")
-    def current_assignment(self, request, **kwargs):
-        """Where the caller belongs in the active session."""
-        assignment = self._get_assignment(self.get_room())
-        return drf_response.Response(
-            {
-                "session_id": str(assignment.session_id),
-                "room": {
-                    "id": str(assignment.breakout_room_id),
-                    "name": assignment.breakout_room.name,
-                },
-            }
-        )
-
-    @decorators.action(
-        detail=True,
         methods=["post"],
-        url_path=f"rooms/(?P<room_pk>{UUIDConverter.regex})/join",
         permission_classes=[drf_permissions.AllowAny],
     )
     @FeatureFlag.require("breakout_rooms")
-    def join(self, request, pk=None, room_pk=None, **kwargs):
-        """A pass to the breakout room the caller is assigned to."""
+    def join(self, request, **kwargs):
+        """The caller's room in the active session, with a pass to it."""
         room = self.get_room()
-        assignment = self._get_assignment(room, session_id=pk, breakout_room_id=room_pk)
+        assignment = self._get_assignment(room)
         return drf_response.Response(services.join_pass(room, assignment, request.user))

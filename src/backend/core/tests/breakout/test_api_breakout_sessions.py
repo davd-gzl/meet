@@ -447,15 +447,10 @@ def test_api_breakout_sessions_join_during_close(livekit, owner_room):
     room, client = owner_room
     user, member_client = logged_in(room)
     session = make_session(room, [str(user.sub)], ["bob"])
-    own = session.rooms.get(name="Room 1")
     during = {}
 
     def compete():
-        join = url(room, f"{session.id!s}/rooms/{own.id!s}/join/")
-        during["join"] = member_client.post(join).status_code
-        during["assignment"] = member_client.get(
-            url(room, "current-assignment/")
-        ).status_code
+        during["join"] = member_client.post(url(room, "join/")).status_code
         during["open"] = client.post(
             url(room), payload(["carol"], ["dave"]), "json"
         ).status_code
@@ -472,7 +467,7 @@ def test_api_breakout_sessions_join_during_close(livekit, owner_room):
     response = client.post(url(room, f"{session.id!s}/close/"))
 
     assert response.status_code == 200
-    assert during == {"join": 404, "assignment": 404, "open": 409}
+    assert during == {"join": 404, "open": 409}
 
 
 @pytest.mark.parametrize("main_room_live", [True, False])
@@ -512,13 +507,10 @@ def test_api_breakout_sessions_flag_off(livekit, owner_room, settings):
     settings.BREAKOUT_ROOMS_ENABLED = False
     room, client = owner_room
     session = make_session(room, ["alice"], ["bob"])
-    breakout_room = session.rooms.first()
 
     assert client.get(url(room)).status_code == 404
     assert client.post(url(room), payload(["a"], ["b"]), "json").status_code == 404
-    assert client.get(url(room, "current-assignment/")).status_code == 404
-    join = f"{session.id!s}/rooms/{breakout_room.id!s}/join/"
-    assert client.post(url(room, join)).status_code == 404
+    assert client.post(url(room, "join/")).status_code == 404
     assert client.post(url(room, f"{session.id!s}/close/")).status_code == 404
     livekit.room.create_room.assert_not_awaited()
     livekit.room.delete_room.assert_not_awaited()
@@ -526,61 +518,21 @@ def test_api_breakout_sessions_flag_off(livekit, owner_room, settings):
     assert session.status == ACTIVE
 
 
-# Current assignment and join
-
-
-def test_api_breakout_sessions_current_assignment_user(livekit):
-    """A signed-in participant finds their room by their sub."""
-    room = RoomFactory()
-    user, client = logged_in(room)
-    session = make_session(room, ["alice"], [str(user.sub)])
-
-    response = client.get(url(room, "current-assignment/"))
-
-    breakout_room = session.rooms.get(name="Room 2")
-    assert response.status_code == 200
-    assert response.json() == {
-        "session_id": str(session.id),
-        "room": {"id": str(breakout_room.id), "name": "Room 2"},
-    }
-
-
-def test_api_breakout_sessions_current_assignment_guest(livekit):
-    """A guest finds their room by the identity their signed cookie gives."""
-    room = RoomFactory()
-    client, identity = guest_client(room)
-    session = make_session(room, [identity], ["bob"])
-
-    response = client.get(url(room, "current-assignment/"))
-
-    assert response.status_code == 200
-    assert response.json()["room"]["id"] == str(session.rooms.get(name="Room 1").id)
-    assert APIClient().get(url(room, "current-assignment/")).status_code == 404
-
-
-def test_api_breakout_sessions_current_assignment_closed(livekit):
-    """A closed session assigns nobody."""
-    room = RoomFactory()
-    user, client = logged_in(room)
-    make_session(room, [str(user.sub)], ["bob"])
-    models.BreakoutSession.objects.update(status=CLOSED)
-
-    assert client.get(url(room, "current-assignment/")).status_code == 404
+# Join
 
 
 def test_api_breakout_sessions_join(livekit):
-    """The assigned participant gets a short member pass to that room only."""
+    """The assigned participant gets their room and a short member pass to it only."""
     room = RoomFactory(configuration={"can_publish_sources": ["microphone"]})
     user, client = logged_in(room, "owner")
-    session = make_session(room, [str(user.sub)], ["bob"])
-    own, other = session.rooms.all()
+    session = make_session(room, ["alice"], [str(user.sub)])
+    own = session.rooms.get(name="Room 2")
 
-    response = client.post(url(room, f"{session.id!s}/rooms/{own.id!s}/join/"))
+    response = client.post(url(room, "join/"))
 
     assert response.status_code == 200
     data = response.json()
-    assert data["url"] == settings.LIVEKIT_CONFIGURATION["url"]
-    assert data["room"] == own.livekit_room_name
+    assert data["room"] == {"id": str(own.id), "name": "Room 2"}
     claims = jwt.decode(
         data["token"],
         settings.LIVEKIT_CONFIGURATION["api_secret"],
@@ -593,21 +545,27 @@ def test_api_breakout_sessions_join(livekit):
     assert claims["video"]["canPublishSources"] == ["microphone"]
     assert claims["attributes"]["room_role"] == "member"
 
-    other_join = url(room, f"{session.id!s}/rooms/{other.id!s}/join/")
-    assert client.post(other_join).status_code == 404
-
 
 def test_api_breakout_sessions_join_guest(livekit):
-    """A guest joins with the identity they hold in the meeting."""
+    """A guest joins with the identity their signed cookie gives; no cookie, no room."""
     room = RoomFactory()
     client, identity = guest_client(room)
-    session = make_session(room, [identity])
-    breakout_room = session.rooms.get()
+    session = make_session(room, [identity], ["bob"])
 
-    response = client.post(
-        url(room, f"{session.id!s}/rooms/{breakout_room.id!s}/join/")
-    )
+    response = client.post(url(room, "join/"))
 
     assert response.status_code == 200
+    assert response.json()["room"]["id"] == str(session.rooms.get(name="Room 1").id)
     claims = jwt.decode(response.json()["token"], options={"verify_signature": False})
     assert claims["sub"] == identity
+    assert APIClient().post(url(room, "join/")).status_code == 404
+
+
+def test_api_breakout_sessions_join_closed(livekit):
+    """A closed session assigns nobody."""
+    room = RoomFactory()
+    user, client = logged_in(room)
+    make_session(room, [str(user.sub)], ["bob"])
+    models.BreakoutSession.objects.update(status=CLOSED)
+
+    assert client.post(url(room, "join/")).status_code == 404

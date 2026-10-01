@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { BreakoutParticipant } from '../components/BreakoutParticipant'
-import { fetchBreakoutAssignment } from '../api'
+import { joinBreakoutRoom } from '../api'
 import { resetBreakout } from '../store'
 
 const h = vi.hoisted(() => ({
@@ -27,11 +27,13 @@ vi.mock('@livekit/components-react', () => ({
 vi.mock('@/features/analytics/telemetry', () => ({ reportError: vi.fn() }))
 vi.mock('@/features/rooms/api/requestEntry', () => ({ requestEntry: vi.fn() }))
 vi.mock('../api', () => ({
-  fetchBreakoutAssignment: vi
+  joinBreakoutRoom: vi
     .fn()
     .mockRejectedValueOnce(new Error('503 Service Unavailable'))
-    .mockResolvedValue({ session_id: 's1', room: { id: 'r1', name: 'R1' } }),
-  joinBreakoutRoom: vi.fn(async () => ({ token: 'breakout-token' })),
+    .mockResolvedValue({
+      room: { id: 'r1', name: 'R1' },
+      token: 'breakout-token',
+    }),
 }))
 
 const flush = () => act(async () => new Promise((r) => setTimeout(r, 0)))
@@ -55,7 +57,7 @@ describe('a failed move to the assigned room', () => {
     rerender(ui())
     await flush()
 
-    expect(vi.mocked(fetchBreakoutAssignment)).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(joinBreakoutRoom)).toHaveBeenCalledTimes(2)
     expect(connect).toHaveBeenCalledWith('breakout-token')
   })
 })

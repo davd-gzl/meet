@@ -3,7 +3,7 @@ import { useConnectionState, useRoomContext } from '@livekit/components-react'
 import { ConnectionState, type Room } from 'livekit-client'
 import { reportError } from '@/features/analytics/telemetry'
 import { useRoomMetadata } from '@/features/recording/hooks/useRoomMetadata'
-import { fetchBreakoutAssignment, joinBreakoutRoom } from '../api'
+import { joinBreakoutRoom } from '../api'
 import { breakoutStore } from '../store'
 import { shouldFetchAssignment } from '../utils/transitions'
 
@@ -15,20 +15,15 @@ const moveToAssignedRoom = async (
   mainRoomId: string,
   connect: Connect
 ) => {
-  const assignment = await fetchBreakoutAssignment(mainRoomId)
-  if (!assignment || breakoutStore.target) return
-  breakoutStore.target = assignment.room
+  const pass = await joinBreakoutRoom(mainRoomId)
+  if (!pass || breakoutStore.target) return
+  breakoutStore.target = pass.room
   try {
-    const pass = await joinBreakoutRoom(
-      mainRoomId,
-      assignment.session_id,
-      assignment.room.id
-    )
     breakoutStore.leaving = true
     // connect() on a connected Room ignores its token, so leave first and wait.
     await room.disconnect()
     breakoutStore.leaving = false
-    breakoutStore.room = assignment.room
+    breakoutStore.room = pass.room
     connect(pass.token)
   } catch (error) {
     Object.assign(breakoutStore, { target: null, leaving: false })

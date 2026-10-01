@@ -8,7 +8,6 @@ from datetime import timedelta
 from logging import getLogger
 from uuid import uuid4
 
-from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
@@ -202,11 +201,10 @@ def close_session(session):
 
 
 def join_pass(room, assignment, user):
-    """A member's pass to the participant's breakout room, publishing what room allows."""
+    """The participant's breakout room and a member pass to it, publishing what room allows."""
     breakout_room = assignment.breakout_room
     return {
-        "url": settings.LIVEKIT_CONFIGURATION["url"],
-        "room": breakout_room.livekit_room_name,
+        "room": {"id": str(breakout_room.id), "name": breakout_room.name},
         "token": utils.generate_token(
             room=breakout_room.livekit_room_name,
             user=user,

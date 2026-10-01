@@ -34,7 +34,7 @@ Closed sessions stay in the database. While a session is active, the main meetin
 
 ## Closing
 
-Close first marks the session `closing`, then removes the `breakout` key from the meeting's metadata, then deletes the rooms, then marks it `closed`. While it is `closing`, joining a room and asking for an assignment answer 404, and opening a new split answers 409. If LiveKit fails part way, the close answers 503 and the session stays `closing`: the list still returns it, and closing it again runs the LiveKit calls again. A room LiveKit already dropped counts as deleted.
+Close first marks the session `closing`, then removes the `breakout` key from the meeting's metadata, then deletes the rooms, then marks it `closed`. While it is `closing`, joining answers 404, and opening a new split answers 409. If LiveKit fails part way, the close answers 503 and the session stays `closing`: the list still returns it, and closing it again runs the LiveKit calls again. A room LiveKit already dropped counts as deleted.
 
 ## Limits
 
