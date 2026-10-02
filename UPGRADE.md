@@ -16,6 +16,13 @@ the following command inside your docker container:
 
 ## [Unreleased]
 
+### Breakout rooms
+
+This release adds breakout rooms, off by default behind `BREAKOUT_ROOMS_ENABLED`. See [the breakout rooms documentation](docs/features/breakout_rooms.md).
+
+- **Rolling back.** Migration `0025_breakout_rooms` adds tables whose foreign keys point at rooms and users. The previous release does not know them, so it cannot delete a room or a user that a breakout session references, and `purge_inactive_rooms` fails on such a room. Before deploying the previous image, run `python manage.py migrate core 0024`, which drops the breakout tables and every session in them.
+- **Old pods and `breakout_*` rooms.** Breakout rooms are LiveKit rooms named `breakout_<session id>_<index>`, and the session id is in the meeting's metadata. Only the new release refuses to hand out a pass to such a name as an unregistered room. With `ALLOW_UNREGISTERED_ROOMS=true`, which is the default, a pod still running the previous release gives anyone a pass to a breakout room they were not assigned to. Keep `BREAKOUT_ROOMS_ENABLED` off until no pod runs the previous release.
+
 ### Purging inactive rooms
 
 Rooms now keep track of the last time they were started (`last_started_at`), fed by LiveKit's `room_started` webhook. A new `purge_inactive_rooms` management command permanently deletes the rooms that have not been started for `ROOM_INACTIVITY_DELETION_DAYS` days. See [the room purge documentation](docs/features/room-purge.md).

@@ -1,5 +1,7 @@
 """Tests for the RoomManagement service."""
 
+import asyncio
+import uuid
 from unittest import mock
 
 import pytest
@@ -7,11 +9,17 @@ from livekit.api import TwirpError
 
 from core.factories import RoomFactory
 from core.models import RoomAccessLevel
+from core.services import room_management
 from core.services.room_management import (
     RoomManagement,
     RoomManagementException,
     RoomNotFoundException,
 )
+
+
+async def hang(*args, **kwargs):
+    """A media server call that never answers."""
+    await asyncio.sleep(60)
 
 
 @mock.patch("core.services.room_management.utils.create_livekit_client")
@@ -79,3 +87,30 @@ def test_sync_room_metadata_pushes_configuration_and_access_level(mock_update_me
             "access_level": RoomAccessLevel.RESTRICTED,
         },
     )
+
+
+@pytest.mark.parametrize(
+    "hanging", ["list_rooms", "update_room_metadata", "delete_room"]
+)
+def test_media_server_call_bounded(hanging):
+    """A media server that never answers costs one deadline, then a clean failure."""
+    client = mock.MagicMock()
+    client.aclose = mock.AsyncMock()
+    for call in ("list_rooms", "update_room_metadata", "delete_room"):
+        side_effect = hang if call == hanging else None
+        setattr(client.room, call, mock.AsyncMock(side_effect=side_effect))
+    client.room.list_rooms.return_value = mock.Mock(rooms=[mock.Mock(metadata="{}")])
+
+    with (
+        mock.patch.object(
+            room_management.utils, "create_livekit_client", return_value=client
+        ),
+        mock.patch.object(room_management, "MEDIA_SERVER_TIMEOUT_SECONDS", 0.05),
+        pytest.raises(RoomManagementException),
+    ):
+        if hanging == "delete_room":
+            RoomManagement.delete_room("room-abc")
+        else:
+            RoomManagement.update_metadata(str(uuid.uuid4()), {"key": "value"})
+
+    client.aclose.assert_awaited_once()

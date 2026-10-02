@@ -2,6 +2,7 @@
 
 # pylint: disable=no-name-in-module
 
+import asyncio
 import json
 from logging import getLogger
 from typing import Dict, Optional
@@ -17,6 +18,15 @@ from livekit.api import (
 from core import utils
 
 logger = getLogger(__name__)
+
+# The LiveKit client's own timeout never applies, so each call carries this one.
+MEDIA_SERVER_TIMEOUT_SECONDS = 5
+
+
+async def bounded(call):
+    """Await one media server call under its own deadline."""
+    async with asyncio.timeout(MEDIA_SERVER_TIMEOUT_SECONDS):
+        return await call
 
 
 class RoomManagementException(Exception):
@@ -51,7 +61,9 @@ class RoomManagement:
         lkapi = utils.create_livekit_client()
 
         try:
-            response = await lkapi.room.list_rooms(ListRoomsRequest(names=[room_name]))
+            response = await bounded(
+                lkapi.room.list_rooms(ListRoomsRequest(names=[room_name]))
+            )
 
             if not response.rooms:
                 logger.warning(
@@ -67,10 +79,12 @@ class RoomManagement:
 
             updated_metadata = {**existing_metadata, **(metadata or {})}
 
-            await lkapi.room.update_room_metadata(
-                UpdateRoomMetadataRequest(
-                    room=room_name,
-                    metadata=json.dumps(updated_metadata),
+            await bounded(
+                lkapi.room.update_room_metadata(
+                    UpdateRoomMetadataRequest(
+                        room=room_name,
+                        metadata=json.dumps(updated_metadata),
+                    )
                 )
             )
 
@@ -82,6 +96,10 @@ class RoomManagement:
                 "Unexpected error updating metadata for room %s",
                 room_name,
             )
+            raise RoomManagementException("Could not update room metadata") from e
+
+        except TimeoutError as e:
+            logger.warning("Timed out updating metadata for room %s", room_name)
             raise RoomManagementException("Could not update room metadata") from e
 
         finally:
@@ -100,7 +118,7 @@ class RoomManagement:
         lkapi = utils.create_livekit_client()
 
         try:
-            await lkapi.room.delete_room(DeleteRoomRequest(room=room_name))
+            await bounded(lkapi.room.delete_room(DeleteRoomRequest(room=room_name)))
             logger.info("Deleted LiveKit room %s", room_name)
         except TwirpError as e:
             if e.code == "not_found":
@@ -111,6 +129,9 @@ class RoomManagement:
                 raise RoomNotFoundException("Room does not exist") from e
 
             logger.exception("Unexpected error deleting room %s", room_name)
+            raise RoomManagementException("Could not delete room") from e
+        except TimeoutError as e:
+            logger.warning("Timed out deleting room %s", room_name)
             raise RoomManagementException("Could not delete room") from e
         finally:
             await lkapi.aclose()
