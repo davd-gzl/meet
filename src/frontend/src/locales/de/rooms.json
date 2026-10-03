@@ -848,7 +848,8 @@
     },
     "active": {
       "empty": "Niemand zugewiesen",
-      "close": "Räume schließen"
+      "close": "Räume schließen",
+      "mainRoom": "Hauptraum"
     },
     "participant": {
       "currentRoom": "Du bist in {{room}}",

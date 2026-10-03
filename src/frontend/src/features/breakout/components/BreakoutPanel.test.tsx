@@ -12,7 +12,11 @@ import { QueryClientProvider, focusManager } from '@tanstack/react-query'
 import { queryClient } from '@/api/queryClient'
 import { ApiError } from '@/api/ApiError'
 import { BreakoutPanel } from './BreakoutPanel'
-import { closeBreakoutSession, fetchBreakoutSession } from '../api'
+import {
+  closeBreakoutSession,
+  fetchBreakoutSession,
+  moveBreakoutParticipant,
+} from '../api'
 
 const h = vi.hoisted(() => ({
   metadata: '',
@@ -38,6 +42,7 @@ vi.mock('../api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api')>()),
   fetchBreakoutSession: vi.fn(),
   closeBreakoutSession: vi.fn(async () => ({})),
+  moveBreakoutParticipant: vi.fn(async () => ({})),
 }))
 
 const announce = (sessionId: string | null) => {
@@ -68,6 +73,47 @@ afterEach(() => {
 })
 
 describe('BreakoutPanel', () => {
+  it('refetches when someone is moved elsewhere in the same session', async () => {
+    vi.mocked(fetchBreakoutSession).mockResolvedValue(session)
+    announce('s1')
+    const { rerender } = render(ui())
+    await screen.findByRole('button', { name: 'active.close' })
+    const calls = vi.mocked(fetchBreakoutSession).mock.calls.length
+    h.metadata = JSON.stringify({
+      breakout: { session_id: 's1', rooms: [], assignments: { alice: 0 } },
+    })
+    rerender(ui())
+    await waitFor(() =>
+      expect(vi.mocked(fetchBreakoutSession).mock.calls.length).toBe(calls + 1)
+    )
+  })
+
+  it('moves one person to another room', async () => {
+    vi.mocked(fetchBreakoutSession).mockResolvedValue({
+      ...session,
+      rooms: [
+        {
+          id: 'r1',
+          name: 'Room 1',
+          participants: [{ identity: 'alice', name: 'Alice' }],
+        },
+        { id: 'r2', name: 'Room 2', participants: [] },
+      ],
+    })
+    render(ui())
+    fireEvent.click(
+      await screen.findByRole('button', { name: /setup\.assign/ })
+    )
+    fireEvent.click(await screen.findByRole('option', { name: 'Room 2' }))
+    await waitFor(() =>
+      expect(moveBreakoutParticipant).toHaveBeenCalledWith('room-1', 's1', {
+        identity: 'alice',
+        name: 'Alice',
+        room: 1,
+      })
+    )
+  })
+
   it('offers close with the flag off', async () => {
     h.config = { breakout_rooms: { is_enabled: false } }
     vi.mocked(fetchBreakoutSession).mockResolvedValueOnce(session)

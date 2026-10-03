@@ -843,7 +843,8 @@
     },
     "active": {
       "empty": "Nadie asignado",
-      "close": "Cerrar salas"
+      "close": "Cerrar salas",
+      "mainRoom": "Sala principal"
     },
     "participant": {
       "currentRoom": "Estás en {{room}}",

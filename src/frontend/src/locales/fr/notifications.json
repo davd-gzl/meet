@@ -71,6 +71,7 @@
   "openMenu": "Ouvrir le menu",
   "breakout": {
     "moved": "Vous êtes maintenant dans {{room}}",
-    "closed": "Les salles sont fermées. Tout le monde est de retour dans la salle principale."
+    "closed": "Les salles sont fermées. Tout le monde est de retour dans la salle principale.",
+    "main": "Vous êtes de retour dans la salle principale"
   }
 }

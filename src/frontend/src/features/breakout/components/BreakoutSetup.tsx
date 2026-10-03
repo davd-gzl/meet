@@ -1,6 +1,4 @@
 import { useMutation } from '@tanstack/react-query'
-import { useRemoteParticipants } from '@livekit/components-react'
-import { RoomEvent } from 'livekit-client'
 import { useTranslation } from 'react-i18next'
 import { useSnapshot } from 'valtio'
 import { RiShuffleLine } from '@remixicon/react'
@@ -14,15 +12,15 @@ import {
   MAX_ROOMS,
   MIN_ROOMS,
   buildRooms,
-  isAssignable,
+  NO_ROOM,
   shuffleAssignments,
 } from '../utils/setup'
 import { ErrorNote } from './ErrorNote'
-import { getParticipantName } from '@/features/rooms/utils/getParticipantName'
+import { PersonRow } from './PersonRow'
+import { useAssignablePeople } from '../hooks/useAssignablePeople'
 import { useRoomMetadata } from '@/features/recording/hooks/useRoomMetadata'
 import { RecordingStatus } from '@/features/recording/hooks/useRecordingStatuses'
 
-const UNASSIGNED = -1
 const ROOM_COUNT_ITEMS = Array.from(
   { length: MAX_ROOMS - MIN_ROOMS + 1 },
   (_, i) => ({ value: MIN_ROOMS + i, label: String(MIN_ROOMS + i) })
@@ -33,23 +31,13 @@ export const BreakoutSetup = ({ roomId }: { roomId: string }) => {
   // In the store, so switching panels keeps the plan.
   const { roomCount, assignments } = useSnapshot(breakoutStore)
 
-  // Joins and leaves always update; a name or a role is all else the list reads.
-  const people = useRemoteParticipants({
-    updateOnlyOn: [
-      RoomEvent.ParticipantNameChanged,
-      RoomEvent.ParticipantAttributesChanged,
-    ],
-  })
-    .filter(isAssignable)
-    .map((p) => ({ identity: p.identity, name: getParticipantName(p) }))
+  const people = useAssignablePeople()
   // A room removed by lowering the room count leaves its people unassigned.
   const roomOf = (identity: string) => {
-    const index = assignments[identity] ?? UNASSIGNED
-    return index >= 0 && index < roomCount ? index : UNASSIGNED
+    const index = assignments[identity] ?? NO_ROOM
+    return index >= 0 && index < roomCount ? index : NO_ROOM
   }
-  const unassigned = people.filter(
-    (p) => roomOf(p.identity) === UNASSIGNED
-  ).length
+  const unassigned = people.filter((p) => roomOf(p.identity) === NO_ROOM).length
   let assignmentStatus = t('setup.allAssigned')
   if (people.length === 0) assignmentStatus = t('setup.nobody')
   else if (unassigned > 0)
@@ -63,7 +51,7 @@ export const BreakoutSetup = ({ roomId }: { roomId: string }) => {
     RecordingStatus.Started,
   ].includes(useRoomMetadata()?.recording_status)
   const roomItems = [
-    { value: UNASSIGNED, label: t('setup.unassignedOption') },
+    { value: NO_ROOM, label: t('setup.unassignedOption') },
     ...roomNames.map((label, value) => ({ value, label })),
   ]
 
@@ -121,30 +109,13 @@ export const BreakoutSetup = ({ roomId }: { roomId: string }) => {
         })}
       >
         {people.map((p) => (
-          <li
+          <PersonRow
             key={p.identity}
-            className={css({
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.5rem',
-            })}
-          >
-            <Text variant="sm" wrap="pretty">
-              {p.name}
-            </Text>
-            <div className={css({ width: '10rem', flexShrink: 0 })}>
-              <Select
-                aria-label={t('setup.assign', { name: p.name })}
-                label=""
-                items={roomItems}
-                selectedKey={roomOf(p.identity)}
-                onSelectionChange={(key) =>
-                  (breakoutStore.assignments[p.identity] = Number(key))
-                }
-              />
-            </div>
-          </li>
+            name={p.name}
+            items={roomItems}
+            selectedKey={roomOf(p.identity)}
+            onChange={(room) => (breakoutStore.assignments[p.identity] = room)}
+          />
         ))}
       </ul>
       {isRecording && <Text variant="warning">{t('setup.recording')}</Text>}

@@ -33,18 +33,20 @@ const InBreakoutMeeting = ({ isolatedOnJoin }: { isolatedOnJoin: boolean }) => {
   // The host's plan belongs to this meeting only.
   useEffect(() => resetBreakout, [])
 
-  // Moving into a room and the rooms closing each get a toast and a sound.
+  // Every change of room, and the rooms closing, get a toast and a sound.
   const wasOpen = usePrevious(isOpen)
   const lastRoomName = usePrevious(roomName)
   useEffect(() => {
     const moved = !!roomName && roomName !== lastRoomName
+    const sentBack = isOpen && !roomName && !!lastRoomName
     const closed = !!wasOpen && !isOpen
-    if (!moved && !closed) return
+    if (!moved && !sentBack && !closed) return
     triggerNotificationSound(NotificationType.BreakoutRoomChanged)
     toastQueue.add(
       {
         type: NotificationType.BreakoutRoomChanged,
         room: roomName,
+        isOpen,
       },
       { timeout: NotificationDuration.BREAKOUT_ROOM_CHANGED }
     )

@@ -9,6 +9,8 @@ export type BreakoutSession = {
   rooms: { id: string; name: string; participants: BreakoutPerson[] }[]
 }
 
+export type MoveBreakoutParticipant = BreakoutPerson & { room: number | null }
+
 export type CreateBreakoutSession = {
   rooms: { name: string; participants: BreakoutPerson[] }[]
 }
@@ -32,6 +34,16 @@ export const createBreakoutSession = (
   body: CreateBreakoutSession
 ) =>
   fetchApi<BreakoutSession>(sessionsUrl(roomId), {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const moveBreakoutParticipant = (
+  roomId: string,
+  sessionId: string,
+  body: MoveBreakoutParticipant
+) =>
+  fetchApi<BreakoutSession>(`${sessionsUrl(roomId)}${sessionId}/move/`, {
     method: 'POST',
     body: JSON.stringify(body),
   })

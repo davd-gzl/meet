@@ -60,7 +60,11 @@ describe('BreakoutParticipant', () => {
     const { rerender } = render(showing(''))
     rerender(showing(split))
     expect(h.toasts).toEqual([
-      { type: NotificationType.BreakoutRoomChanged, room: 'Room 1' },
+      {
+        type: NotificationType.BreakoutRoomChanged,
+        room: 'Room 1',
+        isOpen: true,
+      },
     ])
     expect(h.sound).toHaveBeenCalledWith(NotificationType.BreakoutRoomChanged)
     expect(screen.getByText('currentRoom Room 1')).toBeTruthy()
@@ -89,12 +93,37 @@ describe('BreakoutParticipant', () => {
     expect(h.isolation.at(-1)).toBe(true)
   })
 
+  it('announces being sent back to the main room while rooms stay open', () => {
+    const { rerender } = render(showing(split))
+    rerender(
+      showing(
+        JSON.stringify({
+          breakout: {
+            session_id: 's1',
+            rooms: ['Room 1', 'Room 2'],
+            assignments: {},
+          },
+        })
+      )
+    )
+    expect(h.toasts.at(-1)).toEqual({
+      type: NotificationType.BreakoutRoomChanged,
+      room: null,
+      isOpen: true,
+    })
+    expect(screen.getByText('mainRoom')).toBeTruthy()
+  })
+
   it('announces the rooms closing to everyone', () => {
     h.me = 'host'
     const { rerender } = render(showing(split))
     rerender(showing(''))
     expect(h.toasts).toEqual([
-      { type: NotificationType.BreakoutRoomChanged, room: null },
+      {
+        type: NotificationType.BreakoutRoomChanged,
+        room: null,
+        isOpen: false,
+      },
     ])
     expect(screen.queryByText('mainRoom')).toBeNull()
   })
