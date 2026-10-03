@@ -11,6 +11,9 @@ export const isAssignable = (p: Participant) =>
   p.kind === ParticipantKind.STANDARD &&
   !getParticipantIsRoomAdminOrOwner(p)
 
+// The room picker's key for no room: unassigned in the setup, the main room once open.
+export const NO_ROOM = -1
+
 // Room index per identity; an index past the room count means unassigned.
 export type Assignments = Record<string, number>
 

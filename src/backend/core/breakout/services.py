@@ -35,6 +35,13 @@ class RecordingInProgress(exceptions.APIException):
     default_detail = _("Stop the recording before opening breakout rooms.")
 
 
+class SessionClosed(exceptions.APIException):
+    """The breakout session has closed, so nobody moves in it."""
+
+    status_code = 409
+    default_detail = _("These breakout rooms are closed.")
+
+
 class MediaServerError(exceptions.APIException):
     """A media server call failed; the detail never carries the upstream error."""
 
@@ -71,19 +78,6 @@ def lock_room(room):
     the other's check.
     """
     models.Room.objects.select_for_update().filter(pk=room.pk).first()
-
-
-def _signal(session, rooms):
-    """The metadata every browser reads: the rooms' names and each identity's room."""
-    return {
-        "session_id": str(session.id),
-        "rooms": [data["name"] for data in rooms],
-        "assignments": {
-            participant["identity"]: position
-            for position, data in enumerate(rooms)
-            for participant in data["participants"]
-        },
-    }
 
 
 def _write_signal(room_id, **changes):
@@ -144,9 +138,7 @@ def open_session(room, user, rooms):
         raise SessionAlreadyActive() from error
 
     try:
-        is_live = _write_signal(
-            room.id, metadata={METADATA_KEY: _signal(session, rooms)}
-        )
+        is_live = _write_signal(room.id, metadata={METADATA_KEY: _signal_of(session)})
     except MediaServerError:
         # A write cut off by its deadline may still have landed; take it back.
         # Should that fail too, the session stays active, so a close retries.
@@ -157,6 +149,47 @@ def open_session(room, user, rooms):
     if not is_live:
         session.delete()
         raise MediaServerError()
+    return session
+
+
+def _signal_of(session):
+    """The metadata every browser reads, as the session's rows hold it."""
+    return {
+        "session_id": str(session.id),
+        "rooms": [room.name for room in session.rooms.order_by("position")],
+        "assignments": dict(
+            session.assignments.values_list("identity", "breakout_room__position")
+        ),
+    }
+
+
+def move_participant(session, identity, name, position):
+    """Send one participant to the room at position, or to the main room on None."""
+    with transaction.atomic():
+        lock_room(session.room)
+        session.refresh_from_db(fields=["status"])
+        if session.status != models.BreakoutSessionStatusChoices.ACTIVE:
+            raise SessionClosed()
+        if position is None:
+            session.assignments.filter(identity=identity).delete()
+        else:
+            try:
+                breakout_room = session.rooms.get(position=position)
+            except models.BreakoutRoom.DoesNotExist as error:
+                raise exceptions.ValidationError(
+                    {"room": _("This room does not exist.")}
+                ) from error
+            models.BreakoutAssignment.objects.update_or_create(
+                session=session,
+                identity=identity,
+                defaults={"breakout_room": breakout_room, "name": name},
+            )
+        # A failed write rolls the rows back; one that lands after its deadline
+        # is written over by the next move or close.
+        if not _write_signal(
+            session.room_id, metadata={METADATA_KEY: _signal_of(session)}
+        ):
+            raise MediaServerError()
     return session
 
 

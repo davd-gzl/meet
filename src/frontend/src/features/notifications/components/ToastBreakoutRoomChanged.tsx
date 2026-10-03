@@ -6,7 +6,7 @@ import { HStack } from '@/styled-system/jsx'
 import { useTranslation } from 'react-i18next'
 import { StyledToastContainer } from './StyledToastContainer'
 
-// The room this browser just moved to, or no room when the rooms closed.
+// The room this browser just moved to, the main room, or the rooms closing.
 export function ToastBreakoutRoomChanged({
   state,
   ...props
@@ -15,6 +15,9 @@ export function ToastBreakoutRoomChanged({
   const ref = useRef(null)
   const { toastProps, contentProps } = useToast(props, state, ref)
   const room: string | null = props.toast.content.room
+  let message = t('closed')
+  if (room) message = t('moved', { room })
+  else if (props.toast.content.isOpen) message = t('main')
 
   return (
     <StyledToastContainer {...toastProps} ref={ref}>
@@ -25,7 +28,7 @@ export function ToastBreakoutRoomChanged({
         padding={14}
         gap={0}
       >
-        {room ? t('moved', { room }) : t('closed')}
+        {message}
       </HStack>
     </StyledToastContainer>
   )

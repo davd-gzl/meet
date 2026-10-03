@@ -55,20 +55,18 @@ const parseSignal = (metadata?: string): BreakoutSignal | null => {
   return signal?.assignments && Array.isArray(signal.rooms) ? signal : null
 }
 
-let last: { metadata?: string; signal: BreakoutSignal | null } = {
-  signal: null,
-}
+let last: { metadata?: string; split: string; signal: BreakoutSignal | null } =
+  { split: 'null', signal: null }
 
 // The split announced in the meeting's raw metadata, null outside a split.
-// A session's assignments never change, so its first reading is kept: a write
-// to another key leaves every filter built on it untouched.
+// An unchanged split keeps its reading, so a write to another key leaves every
+// filter built on it untouched; a move inside the split gives a new one.
 export const readSignal = (metadata?: string): BreakoutSignal | null => {
   if (metadata === last.metadata) return last.signal
   const next = parseSignal(metadata)
-  const signal =
-    next && next.session_id === last.signal?.session_id ? last.signal : next
-  last = { metadata, signal }
-  return signal
+  const split = JSON.stringify(next)
+  last = { metadata, split, signal: split === last.split ? last.signal : next }
+  return last.signal
 }
 
 type RoomLike = {

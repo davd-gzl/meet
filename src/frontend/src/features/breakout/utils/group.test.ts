@@ -62,17 +62,19 @@ describe('readSignal', () => {
     expect(readSignal(JSON.stringify({ breakout: signal }))).toEqual(signal)
   })
 
-  it('keeps one reading per session, whatever else the metadata holds', () => {
+  it('keeps one reading while the split is unchanged, whatever else the metadata holds', () => {
     const first = readSignal(JSON.stringify({ breakout: signal }))
     const again = readSignal(
       JSON.stringify({ breakout: signal, recording_status: 'saving' })
     )
     expect(again).toBe(first)
-    const next = readSignal(
-      JSON.stringify({ breakout: { ...signal, session_id: 's2' } })
+    const moved = readSignal(
+      JSON.stringify({
+        breakout: { ...signal, assignments: { ...signal.assignments, bob: 1 } },
+      })
     )
-    expect(next).not.toBe(first)
-    expect(next?.session_id).toBe('s2')
+    expect(moved).not.toBe(first)
+    expect(moved?.assignments.bob).toBe(1)
   })
 
   it('reads no split from metadata without one, or unreadable', () => {

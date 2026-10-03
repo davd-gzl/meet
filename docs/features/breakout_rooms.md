@@ -8,7 +8,7 @@ A host can split a meeting into 2 to 10 smaller rooms and later bring everyone b
 2. Open starts the split, and every assigned participant is in their room at once, with no reconnection. Everyone else forms the main room: the hosts, phone callers, anyone left unassigned and anyone who joins later. Each participant sent to a room gets a toast and a sound naming it, and the main room shows a banner while the rooms are open.
 3. Close ends the split, and everyone hears and sees everyone again, cameras and microphones as they were, with a toast and a sound.
 
-Only one split can be open in a meeting at a time. To change the assignments, close and open again.
+Only one split can be open in a meeting at a time. While it is open, the host can send any participant to another room or back to the main room, someone who joined later included: that participant is in their new room at once, with a toast and a sound.
 
 ## How the rooms are kept apart
 
@@ -49,6 +49,5 @@ Close removes the `breakout` key from the meeting's metadata, then marks the ses
 
 - There is no timer: a split stays open until the host closes it.
 - The host does not visit rooms and cannot write to every room at once.
-- Moving one participant to another room means closing and opening again.
 - A guest of a public meeting gets a new identity with every pass, so one who reloads the page while a split is open lands in the main room.
 - In a public meeting, anyone with the link can join the main room, so the main room is private from the other rooms only in a meeting that is not public.

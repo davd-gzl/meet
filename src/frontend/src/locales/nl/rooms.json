@@ -848,7 +848,8 @@
     },
     "active": {
       "empty": "Niemand toegewezen",
-      "close": "Ruimtes sluiten"
+      "close": "Ruimtes sluiten",
+      "mainRoom": "Hoofdruimte"
     },
     "participant": {
       "currentRoom": "Je bent in {{room}}",
