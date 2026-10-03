@@ -88,16 +88,20 @@ describe('BreakoutPanel', () => {
     )
   })
 
-  it('moves one person to another room', async () => {
+  it('moves one person to another room, and shows where they went', async () => {
+    const alice = { identity: 'alice', name: 'Alice' }
     vi.mocked(fetchBreakoutSession).mockResolvedValue({
       ...session,
       rooms: [
-        {
-          id: 'r1',
-          name: 'Room 1',
-          participants: [{ identity: 'alice', name: 'Alice' }],
-        },
+        { id: 'r1', name: 'Room 1', participants: [alice] },
         { id: 'r2', name: 'Room 2', participants: [] },
+      ],
+    })
+    vi.mocked(moveBreakoutParticipant).mockResolvedValueOnce({
+      ...session,
+      rooms: [
+        { id: 'r1', name: 'Room 1', participants: [] },
+        { id: 'r2', name: 'Room 2', participants: [alice] },
       ],
     })
     render(ui())
@@ -111,6 +115,9 @@ describe('BreakoutPanel', () => {
         name: 'Alice',
         room: 1,
       })
+    )
+    await waitFor(() =>
+      expect(screen.getAllByText('active.empty')).toHaveLength(2)
     )
   })
 
