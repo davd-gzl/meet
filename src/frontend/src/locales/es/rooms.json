@@ -837,16 +837,36 @@
     "setup": {
       "you": "{{name}} (tú)",
       "roomCount": "Número de salas",
-      "unassignedOption": "Sin asignar",
       "nobody": "Todavía no hay nadie para asignar",
-      "unassigned_one": "{{count}} persona sin asignar",
-      "unassigned_other": "{{count}} personas sin asignar",
-      "allAssigned": "Todos están asignados",
-      "shuffle": "Asignar al azar",
-      "assign": "Sala para {{name}}",
-      "open": "Abrir salas",
+      "open": "Abrir {{count}} salas",
       "recording": "Abrir las salas detiene la grabación.",
-      "notInBrowser": "Los participantes que no se unieron desde un navegador, por teléfono por ejemplo, no se pueden asignar a una sala."
+      "notInBrowser": "Los participantes que no se unieron desde un navegador, por teléfono por ejemplo, no se pueden asignar a una sala.",
+      "howToSplit": "Cómo repartir a las personas",
+      "auto": {
+        "title": "Automáticamente",
+        "description": "Todos, salvo los organizadores, se reparten por igual. Puedes ajustarlo después.",
+        "summary": "Reparto automático · {{count}} salas"
+      },
+      "manual": {
+        "title": "Manualmente",
+        "description": "Tú eliges quién va a cada sala. Retoma donde lo dejaste.",
+        "summary": "Reparto manual · {{count}} salas"
+      },
+      "last": {
+        "title": "Igual que la última vez",
+        "description": "Quien siga aquí vuelve a su sala.",
+        "summary": "Igual que la última vez · {{count}} salas"
+      },
+      "back": "Cómo repartir",
+      "placeIn": "Sala {{number}} para {{name}}",
+      "preview": "Vista previa",
+      "noRoom_one": "{{count}} persona sin sala",
+      "noRoom_other": "{{count}} personas sin sala",
+      "placeEvenly": "Repartirlos por igual",
+      "more": "+{{count}}",
+      "nobodyYet": "Nadie todavía",
+      "openStaying_one": "Abrir {{rooms}} salas · {{count}} se queda aquí",
+      "openStaying_other": "Abrir {{rooms}} salas · {{count}} se quedan aquí"
     },
     "active": {
       "empty": "Nadie asignado",
