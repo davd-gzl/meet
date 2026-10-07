@@ -185,6 +185,13 @@ describe('BreakoutPanel', () => {
         { id: 'r2', name: 'Room 2', participants: [] },
       ],
     })
+    vi.mocked(moveBreakoutParticipant).mockResolvedValueOnce({
+      ...session,
+      rooms: [
+        { id: 'r1', name: 'Room 1', participants: [] },
+        { id: 'r2', name: 'Room 2', participants: [] },
+      ],
+    })
     render(ui())
     await screen.findByRole('group', { name: 'Alice' })
     // Her row's first number is Room 1, the room she is in.
