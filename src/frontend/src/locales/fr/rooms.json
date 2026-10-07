@@ -842,16 +842,36 @@
     "setup": {
       "you": "{{name}} (vous)",
       "roomCount": "Nombre de salles",
-      "unassignedOption": "Non assigné",
       "nobody": "Personne à répartir pour l'instant",
-      "unassigned_one": "{{count}} personne non assignée",
-      "unassigned_other": "{{count}} personnes non assignées",
-      "allAssigned": "Tout le monde est assigné",
-      "shuffle": "Répartir aléatoirement",
-      "assign": "Salle de {{name}}",
-      "open": "Ouvrir les salles",
+      "open": "Ouvrir {{count}} salles",
       "recording": "Ouvrir les salles arrête l'enregistrement.",
-      "notInBrowser": "Les participants qui n'ont pas rejoint depuis un navigateur, par téléphone par exemple, ne peuvent pas être placés dans une salle."
+      "notInBrowser": "Les participants qui n'ont pas rejoint depuis un navigateur, par téléphone par exemple, ne peuvent pas être placés dans une salle.",
+      "howToSplit": "Comment répartir les participants",
+      "auto": {
+        "title": "Automatiquement",
+        "description": "Tout le monde, sauf les organisateurs, est réparti de façon égale. Vous pourrez ajuster ensuite.",
+        "summary": "Répartition automatique · {{count}} salles"
+      },
+      "manual": {
+        "title": "Manuellement",
+        "description": "Vous choisissez qui va où. Reprend là où vous en étiez.",
+        "summary": "Répartition manuelle · {{count}} salles"
+      },
+      "last": {
+        "title": "Comme la dernière fois",
+        "description": "Chaque personne encore présente retrouve sa salle.",
+        "summary": "Comme la dernière fois · {{count}} salles"
+      },
+      "back": "Comment répartir",
+      "placeIn": "Salle {{number}} pour {{name}}",
+      "preview": "Aperçu",
+      "noRoom_one": "{{count}} personne sans salle",
+      "noRoom_other": "{{count}} personnes sans salle",
+      "placeEvenly": "Les répartir également",
+      "more": "+{{count}}",
+      "nobodyYet": "Personne pour l'instant",
+      "openStaying_one": "Ouvrir {{rooms}} salles · {{count}} reste ici",
+      "openStaying_other": "Ouvrir {{rooms}} salles · {{count}} restent ici"
     },
     "active": {
       "empty": "Personne n'est assigné",

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
@@ -24,7 +24,7 @@ import {
 } from '../api'
 import { BreakoutSetup } from './BreakoutSetup'
 import { ErrorNote } from './ErrorNote'
-import { PersonRow } from './PersonRow'
+import { PersonRow, type Person } from './PersonRow'
 
 const ActiveSession = ({
   roomId,
@@ -74,22 +74,14 @@ const ActiveSession = ({
       people: people.filter((p) => !assigned.has(p.identity)),
     },
   ]
-  const roomItems = groups.map((group) => ({
-    value: group.position,
-    label: group.name,
-  }))
-  const moveTo = (
-    person: { identity: string; name: string },
-    from: number,
-    to: number
-  ) => {
-    if (to === from) return
-    move.mutate({
-      identity: person.identity,
-      name: person.name,
-      room: to === MAIN_ROOM ? null : to,
-    })
-  }
+  const { mutate } = move
+  // A press on someone's own room sends them back to the main room. Stable
+  // across renders, so a move redraws the rows that changed.
+  const moveTo = useCallback(
+    (person: Person, room: number) =>
+      mutate({ ...person, room: room === MAIN_ROOM ? null : room }),
+    [mutate]
+  )
   const me = {
     identity: localParticipant.identity,
     name: getParticipantName(localParticipant),
@@ -140,11 +132,12 @@ const ActiveSession = ({
               {group.people.map((p) => (
                 <PersonRow
                   key={p.identity}
+                  identity={p.identity}
                   name={p.name}
-                  items={roomItems}
-                  selectedKey={group.position}
+                  roomCount={session.rooms.length}
+                  room={group.position}
                   isDisabled={!canMove || move.isPending}
-                  onChange={(to) => moveTo(p, group.position, to)}
+                  onChange={moveTo}
                 />
               ))}
             </ul>

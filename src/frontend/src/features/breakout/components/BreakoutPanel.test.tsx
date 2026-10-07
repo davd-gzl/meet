@@ -159,10 +159,9 @@ describe('BreakoutPanel', () => {
       ],
     })
     render(ui())
-    fireEvent.click(
-      await screen.findByRole('button', { name: /setup\.assign/ })
-    )
-    fireEvent.click(await screen.findByRole('option', { name: 'Room 2' }))
+    await screen.findByRole('group', { name: 'Alice' })
+    // Her row's second number is Room 2.
+    fireEvent.click(screen.getAllByRole('radio', { name: 'setup.placeIn' })[1])
     await waitFor(() =>
       expect(moveBreakoutParticipant).toHaveBeenCalledWith('room-1', 's1', {
         identity: 'alice',
@@ -173,6 +172,29 @@ describe('BreakoutPanel', () => {
     // Room 1 and the main room are empty now, Alice is in Room 2.
     await waitFor(() =>
       expect(screen.getAllByText('active.empty')).toHaveLength(2)
+    )
+  })
+
+  it('sends someone back to the main room with a press on their own room', async () => {
+    const alice = { identity: 'alice', name: 'Alice' }
+    h.remotes = [{ identity: 'alice' }]
+    vi.mocked(fetchBreakoutSession).mockResolvedValue({
+      ...session,
+      rooms: [
+        { id: 'r1', name: 'Room 1', participants: [alice] },
+        { id: 'r2', name: 'Room 2', participants: [] },
+      ],
+    })
+    render(ui())
+    await screen.findByRole('group', { name: 'Alice' })
+    // Her row's first number is Room 1, the room she is in.
+    fireEvent.click(screen.getAllByRole('radio', { name: 'setup.placeIn' })[0])
+    await waitFor(() =>
+      expect(moveBreakoutParticipant).toHaveBeenCalledWith('room-1', 's1', {
+        identity: 'alice',
+        name: 'Alice',
+        room: null,
+      })
     )
   })
 
@@ -216,7 +238,9 @@ describe('BreakoutPanel', () => {
         queryClient.getQueryState(['breakoutSession', 'room-1'])?.status
       ).toBe('success')
     )
-    expect(screen.queryByRole('button', { name: 'setup.open' })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: /setup\.auto\.title/ })
+    ).toBeNull()
   })
 
   it('shows an error, and no form, when the list fails otherwise', async () => {
@@ -226,7 +250,9 @@ describe('BreakoutPanel', () => {
     render(ui())
     await screen.findByRole('alert')
     expect(screen.queryByRole('button', { name: 'active.close' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'setup.open' })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: /setup\.auto\.title/ })
+    ).toBeNull()
   })
 
   it('keeps the session and a running close when the split leaves the metadata', async () => {
@@ -234,7 +260,7 @@ describe('BreakoutPanel', () => {
     announce(null)
     vi.mocked(fetchBreakoutSession).mockResolvedValueOnce(null)
     const { rerender } = render(ui())
-    await screen.findByRole('button', { name: 'setup.open' })
+    await screen.findByRole('button', { name: /setup\.auto\.title/ })
     announce('s1')
     vi.mocked(fetchBreakoutSession).mockResolvedValueOnce(session)
     rerender(ui())
@@ -248,7 +274,9 @@ describe('BreakoutPanel', () => {
     announce(null)
     rerender(ui())
     await waitFor(() => expect(fetchBreakoutSession).toHaveBeenCalledTimes(3))
-    expect(screen.queryByRole('button', { name: 'setup.open' })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: /setup\.auto\.title/ })
+    ).toBeNull()
     expect(
       screen
         .getByRole('button', { name: 'active.close' })

@@ -20,6 +20,7 @@ and this project adheres to
 - ♿️(frontend) make participant pagination readable and keyboard reachable #1775
 - ✨(fullstack) split a meeting into breakout rooms and bring everyone back
 - ✨(frontend) move someone to another breakout room while rooms are open
+- ✨(frontend) split people into breakout rooms in a few clicks
 
 ### Changed
 

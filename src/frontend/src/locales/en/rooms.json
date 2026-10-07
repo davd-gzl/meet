@@ -842,16 +842,36 @@
     "setup": {
       "you": "{{name}} (you)",
       "roomCount": "Number of rooms",
-      "unassignedOption": "Unassigned",
       "nobody": "Nobody to assign yet",
-      "unassigned_one": "{{count}} person unassigned",
-      "unassigned_other": "{{count}} people unassigned",
-      "allAssigned": "Everyone is assigned",
-      "shuffle": "Assign randomly",
-      "assign": "Room for {{name}}",
-      "open": "Open rooms",
+      "open": "Open {{count}} rooms",
       "recording": "Opening the rooms stops the recording.",
-      "notInBrowser": "Participants who did not join from a browser, such as phone callers, cannot be placed in a room."
+      "notInBrowser": "Participants who did not join from a browser, such as phone callers, cannot be placed in a room.",
+      "howToSplit": "How to split people",
+      "auto": {
+        "title": "Automatically",
+        "description": "Everyone but the hosts is spread evenly. You can adjust after.",
+        "summary": "Split automatically · {{count}} rooms"
+      },
+      "manual": {
+        "title": "Manually",
+        "description": "You choose who goes where. Picks up where you left off.",
+        "summary": "Split manually · {{count}} rooms"
+      },
+      "last": {
+        "title": "Same as last time",
+        "description": "Everyone still here goes back to their room.",
+        "summary": "Same as last time · {{count}} rooms"
+      },
+      "back": "How to split",
+      "placeIn": "Room {{number}} for {{name}}",
+      "preview": "Preview",
+      "noRoom_one": "{{count}} person has no room",
+      "noRoom_other": "{{count}} people have no room",
+      "placeEvenly": "Place them evenly",
+      "more": "+{{count}}",
+      "nobodyYet": "Nobody yet",
+      "openStaying_one": "Open {{rooms}} rooms · {{count}} stays here",
+      "openStaying_other": "Open {{rooms}} rooms · {{count}} stay here"
     },
     "active": {
       "empty": "Nobody assigned",
